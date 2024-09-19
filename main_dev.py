@@ -21,7 +21,7 @@ class RNN(nn.Module):
         super().__init__()
         n_rec_units = 100
         self.noise_std = 0.001
-        self.h_0 = torch.zeros(n_rec_units)
+        # self.h_0 = torch.zeros(n_rec_units)
         self.rec_layer = nn.RNN(input_size=n_inputs,
                                 hidden_size=n_rec_units,
                                 nonlinearity='tanh',
@@ -33,7 +33,7 @@ class RNN(nn.Module):
 
     def forward(self, x):
         noise = torch.randn_like(x) * self.noise_std
-        h_t, _ = self.rec_layer(x + noise, self.h_0)
+        h_t, _ = self.rec_layer(x + noise)
         return self.output_layer(h_t)
 
 
@@ -60,11 +60,14 @@ perturb_dur = 0.02  # 20 ms
 perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
 
 
-amplitudes = np.linspace(min_perturb, max_perturb, n_amplitudes)
+amplitudes = torch.linspace(min_perturb, max_perturb, n_amplitudes)
 data_x = torch.zeros(n_amplitudes, n_samps, n_inputs)
-data_x[:, perturb_win_mask, :] = amplitudes
+data_x[:, perturb_win_mask, :] = torch.tile(amplitudes[:, np.newaxis, np.newaxis],
+                                            (1,
+                                            np.sum(perturb_win_mask),
+                                            n_inputs))
 
-delays = np.linspace(0.01, tstop - 0.01, n_amplitudes)
+delays = np.linspace(0.01, tstop - 0.01, n_amplitudes)  # add margins
 data_y = torch.zeros(n_amplitudes, n_samps, n_outputs)
 for delay in delays:
     delay_mask = times >= delay
@@ -87,29 +90,29 @@ def train(X, Y, model, loss_fn, optimizer):
     optimizer.step()
     optimizer.zero_grad()
 
-    print(f"loss: {loss.item():>7f}")
+    print(f"Training loss: {loss.item():>7f}")
+    return loss.item()
 
 
-def test(dataloader, model, loss_fn):
-    size = len(dataloader.dataset)
-    num_batches = len(dataloader)
+def test(X, Y, model, loss_fn):
     model.eval()
-    test_loss, correct = 0, 0
+
     with torch.no_grad():
-        for X, y in dataloader:
-            X, y = X.to(device), y.to(device)
-            pred = model(X)
-            test_loss += loss_fn(pred, y).item()
-            correct += (pred.argmax(1) == y).type(torch.float).sum().item()
-    test_loss /= num_batches
-    correct /= size
-    print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+        X, Y = X.to(device), Y.to(device)
+
+        # Compute prediction error
+        pred = model(X)
+        loss = loss_fn(pred, Y)
+
+    print(f"Test loss: {loss.item():>7f}")
 
 
 # %% train and test model over a few epochs
-epochs = 30
+epochs = 100
+loss_per_step = list()
 for t in range(epochs):
     print(f"Epoch {t+1}\n-------------------------------")
-    train(data_x, data_y, model, loss_fn, optimizer)
-    test(test_dataloader, model, loss_fn)
+    loss = train(data_x, data_y, model, loss_fn, optimizer)
+    loss_per_step.append(loss)
+    # test(test_dataloader, model, loss_fn)
 print("Done!")
