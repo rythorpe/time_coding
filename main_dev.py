@@ -27,9 +27,12 @@ class RNN(nn.Module):
                                 nonlinearity='tanh',
                                 bias=False,
                                 batch_first=True)
-        self.output_layer = nn.Linear(in_features=n_rec_units,
-                                      out_features=n_outputs,
-                                      bias=False)
+        self.output_layer = nn.Sequential(
+            nn.Linear(in_features=n_rec_units,
+                      out_features=n_outputs,
+                      bias=False),
+            nn.Tanh()
+        )
 
     def forward(self, x):
         noise = torch.randn_like(x) * self.noise_std
@@ -48,7 +51,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
 # %% create data
 # proxy for precision of timing code (increase for more precision)
-n_amplitudes = 10
+n_amplitudes = 5
 max_perturb = 2.0
 min_perturb = -max_perturb
 
@@ -56,22 +59,30 @@ dt = 1e-3  # 1 ms
 tstop = 2.  # 2 sec
 times = np.arange(-0.1, tstop, dt)
 n_samps = len(times)
-perturb_dur = 0.02  # 20 ms
+perturb_dur = 0.05  # 20 ms
 perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
 
 
 amplitudes = torch.linspace(min_perturb, max_perturb, n_amplitudes)
-data_x = torch.zeros(n_amplitudes, n_samps, n_inputs)
-data_x[:, perturb_win_mask, :] = torch.tile(amplitudes[:, np.newaxis, np.newaxis],
-                                            (1,
-                                            np.sum(perturb_win_mask),
-                                            n_inputs))
+data_x = torch.zeros((n_amplitudes, n_samps, n_inputs))
+data_x[:, perturb_win_mask, :] = torch.tile(
+    amplitudes[:, np.newaxis, np.newaxis],
+    (1, np.sum(perturb_win_mask),
+    n_inputs)
+)
 
 delays = np.linspace(0.01, tstop - 0.01, n_amplitudes)  # add margins
-data_y = torch.zeros(n_amplitudes, n_samps, n_outputs)
-for delay in delays:
+data_y = torch.zeros((n_amplitudes, n_samps, n_outputs))
+for delay_idx, delay in enumerate(delays):
     delay_mask = times >= delay
-    data_y[:, delay_mask, :] = 1.0
+    data_y[delay_idx, delay_mask, :] = 1.0
+
+fig, axes = plt.subplots(1, 2, figsize=(8, 2))
+colors = plt.cm.binary(np.linspace(0.1, 1, n_amplitudes))
+for ampl_idx, color in zip(range(n_amplitudes), colors):
+    axes[0].plot(times, data_x[ampl_idx, :, :], c=color, lw=1)
+    axes[1].plot(times, data_y[ampl_idx, :, :], c=color, lw=1)
+plt.show()
 
 
 # %% define train and test functions that will loop over
@@ -108,7 +119,7 @@ def test(X, Y, model, loss_fn):
 
 
 # %% train and test model over a few epochs
-epochs = 100
+epochs = 30
 loss_per_step = list()
 for t in range(epochs):
     print(f"Epoch {t+1}\n-------------------------------")
