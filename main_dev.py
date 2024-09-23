@@ -19,7 +19,7 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 class RNN(nn.Module):
     def __init__(self, n_inputs, n_outputs):
         super().__init__()
-        n_rec_units = 100
+        n_rec_units = 500
         self.noise_std = 0.001
         # self.h_0 = torch.zeros(n_rec_units)
         self.rec_layer = nn.RNN(input_size=n_inputs,
@@ -27,6 +27,8 @@ class RNN(nn.Module):
                                 nonlinearity='tanh',
                                 bias=False,
                                 batch_first=True)
+        for param in self.rec_layer.parameters():
+            param.detach_()
         self.output_layer = nn.Sequential(
             nn.Linear(in_features=n_rec_units,
                       out_features=n_outputs,
@@ -46,7 +48,7 @@ print(model)
 
 
 loss_fn = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
 
 
 # %% create data
@@ -56,7 +58,7 @@ max_perturb = 2.0
 min_perturb = -max_perturb
 
 dt = 1e-3  # 1 ms
-tstop = 2.  # 2 sec
+tstop = 1.  # 2 sec
 times = np.arange(-0.1, tstop, dt)
 n_samps = len(times)
 perturb_dur = 0.05  # 20 ms
@@ -67,15 +69,28 @@ amplitudes = torch.linspace(min_perturb, max_perturb, n_amplitudes)
 data_x = torch.zeros((n_amplitudes, n_samps, n_inputs))
 data_x[:, perturb_win_mask, :] = torch.tile(
     amplitudes[:, np.newaxis, np.newaxis],
-    (1, np.sum(perturb_win_mask),
-    n_inputs)
+    (1, np.sum(perturb_win_mask), n_inputs)
 )
 
-delays = np.linspace(0.01, tstop - 0.01, n_amplitudes)  # add margins
+delays = np.linspace(0.1, tstop - 0.1, n_amplitudes)  # add margins
 data_y = torch.zeros((n_amplitudes, n_samps, n_outputs))
+k_w = 50  # numel of a given side of the kernel
+gaussian_kernel = np.exp(np.arange(-k_w * dt, k_w * dt, dt) ** 2 /
+                         (-2 * (dt * 20) ** 2))
+gaussian_kernel /= np.sum(gaussian_kernel)  # normalize
 for delay_idx, delay in enumerate(delays):
     delay_mask = times >= delay
     data_y[delay_idx, delay_mask, :] = 1.0
+    for output_idx in range(n_outputs):
+        unsmoothed = np.concatenate([np.zeros(k_w),
+                                     data_y[delay_idx, :, output_idx].numpy(),
+                                     np.ones(k_w)])
+        smoothed = np.convolve(
+            unsmoothed,
+            gaussian_kernel,
+            mode='same'
+        )
+        data_y[delay_idx, :, output_idx] = torch.Tensor(smoothed[k_w:-k_w])
 
 fig, axes = plt.subplots(1, 2, figsize=(8, 2))
 colors = plt.cm.binary(np.linspace(0.1, 1, n_amplitudes))
@@ -115,11 +130,20 @@ def test(X, Y, model, loss_fn):
         pred = model(X)
         loss = loss_fn(pred, Y)
 
+        pred = pred.cpu()
+
+        fig, axes = plt.subplots(1, 2, figsize=(8, 2))
+        colors = plt.cm.binary(np.linspace(0.1, 1, n_amplitudes))
+        for ampl_idx, color in zip(range(n_amplitudes), colors):
+            axes[0].plot(times, data_x[ampl_idx, :, :], c=color, lw=1)
+            axes[1].plot(times, pred[ampl_idx, :, :], c=color, lw=1)
+        plt.show()
+
     print(f"Test loss: {loss.item():>7f}")
 
 
 # %% train and test model over a few epochs
-epochs = 30
+epochs = 100
 loss_per_step = list()
 for t in range(epochs):
     print(f"Epoch {t+1}\n-------------------------------")
@@ -127,3 +151,8 @@ for t in range(epochs):
     loss_per_step.append(loss)
     # test(test_dataloader, model, loss_fn)
 print("Done!")
+
+# %%
+test(data_x, data_y, model, loss_fn)
+
+# %%
