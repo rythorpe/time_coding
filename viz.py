@@ -35,7 +35,7 @@ def plot_inputs_outputs(inputs, outputs, times,
     axes[0].set_yticks([-2, 0, 2])
     axes[0].set_ylabel('input')
 
-    axes[-1].set_xticks(np.arange(0, np.round(times[-1]), 0.2))
+    axes[-1].set_xticks(np.arange(0, np.round(times[-1] + 0.2), 0.2))
     axes[-1].set_xlabel('time (s)')
     axes[-1].set_yticks([0, 1])
     axes[-1].set_ylabel('output')

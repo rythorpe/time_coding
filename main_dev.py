@@ -32,10 +32,10 @@ n_amplitudes = 5
 min_perturb, max_perturb = -2.0, 2.0
 
 dt = 1e-3  # 1 ms
-tstop = 1.  # 2 sec
+tstop = 1.  # 1 sec
 times = np.arange(-0.1, tstop, dt)
 n_samps = len(times)
-perturb_dur = 0.05  # 20 ms
+perturb_dur = 0.025  # 25 ms
 perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
 
 
