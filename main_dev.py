@@ -8,6 +8,7 @@ import torch
 from torch import nn
 
 from utils import get_device
+from models import RNN
 
 
 # %% set meta-parameters
@@ -15,33 +16,7 @@ device = get_device()
 torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
-# %% define model
-class RNN(nn.Module):
-    def __init__(self, n_inputs, n_outputs):
-        super().__init__()
-        n_rec_units = 500
-        self.noise_std = 0.001
-        # self.h_0 = torch.zeros(n_rec_units)
-        self.rec_layer = nn.RNN(input_size=n_inputs,
-                                hidden_size=n_rec_units,
-                                nonlinearity='tanh',
-                                bias=False,
-                                batch_first=True)
-        for param in self.rec_layer.parameters():
-            param.detach_()
-        self.output_layer = nn.Sequential(
-            nn.Linear(in_features=n_rec_units,
-                      out_features=n_outputs,
-                      bias=False),
-            nn.Tanh()
-        )
-
-    def forward(self, x):
-        noise = torch.randn_like(x) * self.noise_std
-        h_t, _ = self.rec_layer(x + noise)
-        return self.output_layer(h_t)
-
-
+# %% instantiate model, loss function, and optimizer
 n_inputs, n_outputs = 1, 1
 model = RNN(n_inputs=1, n_outputs=1).to(device)
 print(model)
@@ -54,8 +29,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
 # %% create data
 # proxy for precision of timing code (increase for more precision)
 n_amplitudes = 5
-max_perturb = 2.0
-min_perturb = -max_perturb
+min_perturb, max_perturb = -2.0, 2.0
 
 dt = 1e-3  # 1 ms
 tstop = 1.  # 2 sec
@@ -74,9 +48,9 @@ data_x[:, perturb_win_mask, :] = torch.tile(
 
 delays = np.linspace(0.1, tstop - 0.1, n_amplitudes)  # add margins
 data_y = torch.zeros((n_amplitudes, n_samps, n_outputs))
-k_w = 50  # numel of a given side of the kernel
+k_w = 100  # numel of a given side of the kernel
 gaussian_kernel = np.exp(np.arange(-k_w * dt, k_w * dt, dt) ** 2 /
-                         (-2 * (dt * 20) ** 2))
+                         (-2 * (dt * 10) ** 2))
 gaussian_kernel /= np.sum(gaussian_kernel)  # normalize
 for delay_idx, delay in enumerate(delays):
     delay_mask = times >= delay
