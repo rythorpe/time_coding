@@ -27,4 +27,4 @@ class RNN(nn.Module):
     def forward(self, x):
         noise = torch.randn_like(x) * self.noise_std
         h_t, _ = self.rec_layer(x + noise)
-        return self.output_layer(h_t)
+        return self.output_layer(h_t), h_t

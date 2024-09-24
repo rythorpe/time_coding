@@ -9,6 +9,7 @@ from torch import nn
 
 from utils import get_device
 from models import RNN
+from viz import plot_inputs_outputs
 
 
 # %% set meta-parameters
@@ -20,7 +21,6 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 n_inputs, n_outputs = 1, 1
 model = RNN(n_inputs=1, n_outputs=1).to(device)
 print(model)
-
 
 loss_fn = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
@@ -48,7 +48,7 @@ data_x[:, perturb_win_mask, :] = torch.tile(
 
 delays = np.linspace(0.1, tstop - 0.1, n_amplitudes)  # add margins
 data_y = torch.zeros((n_amplitudes, n_samps, n_outputs))
-k_w = 100  # numel of a given side of the kernel
+k_w = 50  # numel of a given side of the kernel
 gaussian_kernel = np.exp(np.arange(-k_w * dt, k_w * dt, dt) ** 2 /
                          (-2 * (dt * 10) ** 2))
 gaussian_kernel /= np.sum(gaussian_kernel)  # normalize
@@ -66,12 +66,8 @@ for delay_idx, delay in enumerate(delays):
         )
         data_y[delay_idx, :, output_idx] = torch.Tensor(smoothed[k_w:-k_w])
 
-fig, axes = plt.subplots(1, 2, figsize=(8, 2))
-colors = plt.cm.binary(np.linspace(0.1, 1, n_amplitudes))
-for ampl_idx, color in zip(range(n_amplitudes), colors):
-    axes[0].plot(times, data_x[ampl_idx, :, :], c=color, lw=1)
-    axes[1].plot(times, data_y[ampl_idx, :, :], c=color, lw=1)
-plt.show()
+fig = plot_inputs_outputs(data_x, data_y, times)
+fig.show()
 
 
 # %% define train and test functions that will loop over
@@ -82,8 +78,9 @@ def train(X, Y, model, loss_fn, optimizer):
     X, Y = X.to(device), Y.to(device)
 
     # Compute prediction error
-    pred = model(X)
-    loss = loss_fn(pred, Y)
+    pred, h_t = model(X)
+    loss = loss_fn(pred[:, times > 0, :],
+                   Y[:, times > 0, :])
 
     # Backpropagation
     loss.backward()
@@ -101,17 +98,15 @@ def test(X, Y, model, loss_fn):
         X, Y = X.to(device), Y.to(device)
 
         # Compute prediction error
-        pred = model(X)
+        pred, h_t = model(X)
         loss = loss_fn(pred, Y)
 
+        input = X.cpu()
         pred = pred.cpu()
+        rec_traj = h_t.cpu()
 
-        fig, axes = plt.subplots(1, 2, figsize=(8, 2))
-        colors = plt.cm.binary(np.linspace(0.1, 1, n_amplitudes))
-        for ampl_idx, color in zip(range(n_amplitudes), colors):
-            axes[0].plot(times, data_x[ampl_idx, :, :], c=color, lw=1)
-            axes[1].plot(times, pred[ampl_idx, :, :], c=color, lw=1)
-        plt.show()
+        fig = plot_inputs_outputs(input, pred, times, rec_traj=rec_traj)
+        fig.show()
 
     print(f"Test loss: {loss.item():>7f}")
 
