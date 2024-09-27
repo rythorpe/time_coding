@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from utils import get_device
-from models import RNN
+from models import RNN, RNN_echostate
 from viz import plot_inputs_outputs
 
 
@@ -18,8 +18,9 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_outputs = 1, 1
-model = RNN(n_inputs=1, n_outputs=1).to(device)
+n_inputs, n_hidden, n_outputs = 1, 800, 1
+model = RNN_echostate(n_inputs=1, n_hidden=n_hidden, n_outputs=1,
+                      silence_feedback=True).to(device)
 print(model)
 
 loss_fn = nn.MSELoss()
@@ -35,7 +36,7 @@ dt = 1e-3  # 1 ms
 tstop = 1.  # 1 sec
 times = np.arange(-0.1, tstop, dt)
 n_samps = len(times)
-perturb_dur = 0.025  # 25 ms
+perturb_dur = 0.05  # 50 ms
 perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
 
 
@@ -72,13 +73,13 @@ fig.show()
 
 # %% define train and test functions that will loop over
 # each batch
-def train(X, Y, model, loss_fn, optimizer):
+def train(X, Y, model, loss_fn, optimizer, h_0=None):
     model.train()
 
     X, Y = X.to(device), Y.to(device)
 
     # Compute prediction error
-    pred, h_t = model(X)
+    pred, h_t = model(X, h_0=h_0, dt=dt)
     loss = loss_fn(pred[:, times > 0, :],
                    Y[:, times > 0, :])
 
@@ -91,14 +92,14 @@ def train(X, Y, model, loss_fn, optimizer):
     return loss.item()
 
 
-def test(X, Y, model, loss_fn):
+def test(X, Y, model, loss_fn, h_0=None):
     model.eval()
 
     with torch.no_grad():
         X, Y = X.to(device), Y.to(device)
 
         # Compute prediction error
-        pred, h_t = model(X)
+        pred, h_t = model(X, h_0=h_0, dt=dt)
         loss = loss_fn(pred, Y)
 
         input = X.cpu()
@@ -111,17 +112,24 @@ def test(X, Y, model, loss_fn):
     print(f"Test loss: {loss.item():>7f}")
 
 
+# fix initial conditions for training and testing
+h_0 = (torch.rand(n_hidden) * 2) - 1  # uniform in (-1, 1)
+h_0.to(device)
+
 # %% train and test model over a few epochs
-epochs = 100
-loss_per_step = list()
-for t in range(epochs):
-    print(f"Epoch {t+1}\n-------------------------------")
-    loss = train(data_x, data_y, model, loss_fn, optimizer)
-    loss_per_step.append(loss)
+n_iter = 20
+loss_per_iter = list()
+for t in range(n_iter):
+    print(f"Iteration {t+1}\n-------------------------------")
+    loss = train(data_x, data_y, model, loss_fn, optimizer, h_0=h_0)
+    loss_per_iter.append(loss)
     # test(test_dataloader, model, loss_fn)
 print("Done!")
 
+plt.figure()
+plt.plot(loss_per_iter)
+
 # %%
-test(data_x, data_y, model, loss_fn)
+test(data_x, data_y, model, loss_fn, h_0=h_0)
 
 # %%
