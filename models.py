@@ -55,8 +55,8 @@ class RNN_echostate(nn.Module):
         torch.nn.init.normal_(self.W_ih, mean=0.0, std=w_input_std)
 
         # initialize hidden weights
-        gain = 1.7
-        prob_c = 0.20
+        gain = 1.5
+        prob_c = 0.10
         w_hidden_std = gain / np.sqrt(prob_c * n_hidden)
         torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c), std=w_hidden_std)
         # torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
@@ -84,13 +84,15 @@ class RNN_echostate(nn.Module):
 
         if h_0 is None:
             h_0 = (torch.rand(self.n_hidden) * 2) - 1  # uniform in (-1, 1)
+            h_0 = torch.tile(h_0, (batch_size, 1))  # replicate for each batch
         h = torch.zeros(batch_size, seq_len, self.n_hidden)
         z = torch.zeros(batch_size, seq_len, self.n_outputs)
 
         for batch_idx in range(batch_size):
             # initialize hidden and output states
-            h_t_minus_1 = h_0
-            h_transfer = torch.tanh(h_0)
+            # each batch can theoretically have a different start point
+            h_t_minus_1 = h_0[batch_idx, :]
+            h_transfer = torch.tanh(h_0[batch_idx, :])
             z_t_minus_1 = h_transfer @ self.W_hz.T
             # begin integration over time
             for t in range(seq_len):
