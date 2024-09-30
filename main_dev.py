@@ -19,7 +19,7 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_hidden, n_outputs = 1, 1000, 1
+n_inputs, n_hidden, n_outputs = 1, 500, 1
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
             n_outputs=n_outputs, echo_state=True)
 model.to(device)
@@ -27,11 +27,12 @@ print(model)
 
 loss_fn = nn.MSELoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+# optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
 
 # %% create data
 # proxy for precision of timing code (increase for more precision)
-n_amplitudes = 12
+n_amplitudes = 5
 min_perturb, max_perturb = -2.0, 2.0
 
 dt = 1e-3  # 1 ms
@@ -68,7 +69,7 @@ for delay_idx, delay in enumerate(delays):
             gaussian_kernel,
             mode='same'
         )
-        data_y[delay_idx, :, output_idx] = torch.Tensor(smoothed[k_w:-k_w])
+        data_y[delay_idx, :, output_idx] = torch.tensor(smoothed[k_w:-k_w])
 
 fig = plot_inputs_outputs(data_x, data_y, times)
 fig.show()
@@ -76,7 +77,7 @@ fig.show()
 
 # %% define train and test functions that will loop over
 # each batch
-def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
+def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
     model.train()
     inputs, targets = inputs.to(device), targets.to(device)
 
@@ -105,6 +106,21 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
     return losses
 
 
+def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
+    model.train()
+    inputs, targets = inputs.to(device), targets.to(device)
+
+    outputs, _h_t = model(inputs, h_0=h_0, dt=dt)
+    loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
+    # backpropagation
+    loss.backward()
+    optimizer.step()
+    optimizer.zero_grad()
+    loss = loss.item()
+
+    return [loss]
+
+
 def test(inputs, targets, times, model, loss_fn, h_0=None):
     model.eval()
 
@@ -131,7 +147,7 @@ h_0 = torch.tile(h_0, (n_amplitudes, 1))  # replicate for each batch
 h_0 = h_0.to(device)
 
 # %% train and test model over a few epochs
-n_iter = 10
+n_iter = 20
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
