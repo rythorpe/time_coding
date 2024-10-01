@@ -9,6 +9,7 @@ from torch import nn
 
 from utils import get_device
 from models import RNN
+from opt import diff_loss, RLS_opt
 from viz import plot_inputs_outputs
 
 
@@ -25,9 +26,12 @@ model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
 model.to(device)
 print(model)
 
-loss_fn = nn.MSELoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+# loss_fn = nn.MSELoss()
+# optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 # optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+loss_fn = diff_loss
+optimizer = RLS_opt(model.parameters(), n_hidden, alpha=0.5)
 
 
 # %% create data
@@ -98,7 +102,8 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         # loss at t - delta_t
         loss = loss_fn(outputs[:, 0, :], targets[:, t_minus_1_idx, :])
         # backpropagation
-        loss.backward()
+        loss.backward(torch.tanh(h_t[:, -1, :]))
+        # optimizer.step()
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
@@ -147,7 +152,7 @@ h_0 = torch.tile(h_0, (n_amplitudes, 1))  # replicate for each batch
 h_0 = h_0.to(device)
 
 # %% train and test model over a few epochs
-n_iter = 20
+n_iter = 5
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
