@@ -14,8 +14,8 @@ class RNN(nn.Module):
         self.n_outputs = n_outputs
         self.noise_std = 0.0  # 0.001
         self.tau = 0.01  # 10 ms
-        gain = 1.7
-        prob_c = 0.15
+        gain = 1.6
+        prob_c = 0.1
 
         self.W_ih = nn.Parameter(torch.empty(n_hidden, n_inputs),
                                  requires_grad=False)

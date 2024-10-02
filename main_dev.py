@@ -20,18 +20,15 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_hidden, n_outputs = 1, 500, 1
+n_inputs, n_hidden, n_outputs = 1, 1000, 1
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
             n_outputs=n_outputs, echo_state=True)
 model.to(device)
 print(model)
 
-# loss_fn = nn.MSELoss()
-# optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 # optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-
-loss_fn = diff_loss
-optimizer = RLS_opt(model.parameters(), n_hidden, alpha=0.5)
 
 
 # %% create data
@@ -102,8 +99,7 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         # loss at t - delta_t
         loss = loss_fn(outputs[:, 0, :], targets[:, t_minus_1_idx, :])
         # backpropagation
-        loss.backward(torch.tanh(h_t[:, -1, :]))
-        # optimizer.step()
+        loss.backward()
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
@@ -140,7 +136,8 @@ def test(inputs, targets, times, model, loss_fn, h_0=None):
         outputs = outputs.cpu()
         h_t = h_t.cpu()
 
-        fig = plot_inputs_outputs(inputs, outputs, times, rec_traj=h_t)
+        fig = plot_inputs_outputs(inputs, outputs, times, rec_traj=h_t,
+                                  targets=targets)
         fig.show()
 
     print(f"Test loss: {loss.item():>7f}")
@@ -156,13 +153,16 @@ n_iter = 5
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
-    loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    # loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    loss = train_force(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
     loss_per_iter.extend(loss)
     # test(test_dataloader, model, loss_fn)
 print("Done!")
 
 plt.figure()
 plt.plot(loss_per_iter)
+plt.xlabel('iteration')
+plt.ylabel('loss')
 
 # %%
 test(data_x, data_y, times, model, loss_fn, h_0=h_0)

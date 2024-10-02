@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def plot_inputs_outputs(inputs, outputs, times, rec_traj=None):
+def plot_inputs_outputs(inputs, outputs, times, rec_traj=None, targets=None):
     n_trials, n_times, n_inputs = inputs.shape
     _, _, n_outputs = outputs.shape
 
@@ -36,6 +36,9 @@ def plot_inputs_outputs(inputs, outputs, times, rec_traj=None):
 
         # outputs
         axes[-1].plot(times, outputs[trial_idx, :, :], c=color, lw=2)
+        if targets is not None:
+            axes[-1].plot(times, targets[trial_idx, :, :],
+                          c=color, lw=2, ls=':')
 
     # axes[0].set_yticks([-2, 0, 2])
     axes[0].set_ylabel('input')
