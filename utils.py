@@ -1,5 +1,6 @@
 """Utility variables and functions."""
 
+import numpy as np
 import torch
 
 
@@ -14,3 +15,7 @@ def get_device():
     )
     print(f"Using {device} device")
     return device
+
+
+def gaussian_func(x, center, width):
+    return np.exp(-(x - center) ** 2 / (2 * width ** 2))

@@ -7,34 +7,34 @@ import matplotlib.pyplot as plt
 import torch
 from torch import nn
 
-from utils import get_device
+from utils import get_device, gaussian_func
 from models import RNN
 from opt import diff_loss, RLS_opt
 from viz import plot_inputs_outputs
 
 
 # %% set meta-parameters
-device = get_device()
+# device = get_device()
 device = 'cpu'
 torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_hidden, n_outputs = 1, 1000, 1
+n_inputs, n_hidden, n_outputs = 1, 100, 1
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
-            n_outputs=n_outputs, echo_state=True)
+            n_outputs=n_outputs, echo_state=False)
 model.to(device)
 print(model)
 
 loss_fn = nn.MSELoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-# optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+# optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
 
 # %% create data
 # proxy for precision of timing code (increase for more precision)
-n_amplitudes = 5
-min_perturb, max_perturb = -2.0, 2.0
+n_amplitudes = 1
+min_perturb, max_perturb = -0.0, 0.0
 
 dt = 1e-3  # 1 ms
 tstop = 1.  # 1 sec
@@ -51,26 +51,12 @@ data_x[:, perturb_win_mask, :] = torch.tile(
     (1, np.sum(perturb_win_mask), n_inputs)
 )
 
-delays = np.linspace(0.1, tstop - 0.1, n_amplitudes)  # add margins
-# delays = [0.5]
-data_y = torch.zeros((n_amplitudes, n_times, n_outputs))
-k_w = 50  # numel of a given side of the kernel
-gaussian_kernel = np.exp(np.arange(-k_w * dt, k_w * dt, dt) ** 2 /
-                         (-2 * (dt * 10) ** 2))
-gaussian_kernel /= np.sum(gaussian_kernel)  # normalize
-for delay_idx, delay in enumerate(delays):
-    delay_mask = times >= delay
-    data_y[delay_idx, delay_mask, :] = 1.0
-    for output_idx in range(n_outputs):
-        unsmoothed = np.concatenate([np.zeros(k_w),
-                                     data_y[delay_idx, :, output_idx].numpy(),
-                                     np.ones(k_w)])
-        smoothed = np.convolve(
-            unsmoothed,
-            gaussian_kernel,
-            mode='same'
-        )
-        data_y[delay_idx, :, output_idx] = torch.tensor(smoothed[k_w:-k_w])
+# delays = np.linspace(0.1, tstop - 0.1, n_amplitudes)  # add margins
+delays = [0.5]
+width = 0.100  # 20 ms
+data_y = torch.zeros((n_amplitudes, n_times, n_inputs))
+for output_idx, center in enumerate(delays):
+    data_y[output_idx, :, 0] = torch.tensor(gaussian_func(times, center, width))
 
 fig = plot_inputs_outputs(data_x, data_y, times)
 fig.show()
@@ -103,8 +89,34 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
-
     return losses
+
+
+def train_intime(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
+    model.train()
+    inputs, targets = inputs.to(device), targets.to(device)
+
+    # run model without storing gradients until t=0
+    with torch.no_grad():
+        outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
+
+    # now, train using FORCE
+    force_step = 1
+    losses = list()
+    t_0_idx = np.nonzero(times > 0)[0][0]
+    for t_idx in np.arange(t_0_idx, n_times):
+        # compute prediction error
+        h_0 = h_t[:, -1, :].detach()
+        outputs, h_t = model(inputs[:, t_idx:t_idx + 1, :], h_0=h_0, dt=dt)
+        # loss at t - delta_t
+        loss = loss_fn(outputs[:, 0, :], targets[:, t_idx, :])
+        losses.append(loss.item())
+        # backpropagation
+        loss.backward(retain_graph=True)
+    optimizer.step()
+    optimizer.zero_grad()
+
+    return np.sum(losses)
 
 
 def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
@@ -149,13 +161,14 @@ h_0 = torch.tile(h_0, (n_amplitudes, 1))  # replicate for each batch
 h_0 = h_0.to(device)
 
 # %% train and test model over a few epochs
-n_iter = 5
+n_iter = 200
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
     # loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-    loss = train_force(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-    loss_per_iter.extend(loss)
+    # loss = train_force(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    total_loss = train_intime(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    loss_per_iter.append(total_loss)
     # test(test_dataloader, model, loss_fn)
 print("Done!")
 

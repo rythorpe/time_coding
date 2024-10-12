@@ -15,12 +15,12 @@ class RNN(nn.Module):
         self.noise_std = 0.0  # 0.001
         self.tau = 0.01  # 10 ms
         gain = 1.6
-        prob_c = 0.1
+        prob_c = 0.5
 
         self.W_ih = nn.Parameter(torch.empty(n_hidden, n_inputs),
                                  requires_grad=False)
         self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
-                                 requires_grad=False)
+                                 requires_grad=True)
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
         self.W_zh = nn.Parameter(torch.empty(n_hidden, n_outputs),
@@ -70,7 +70,7 @@ class RNN(nn.Module):
         z = torch.zeros(batch_size, seq_len, self.n_outputs)
 
         # NB: doesn't work on CUDA; due to FORCE training, h_0 is updated
-        # regularly in time and therefore lives on the CPU 
+        # regularly in time and therefore lives on the CPU
         for batch_idx in range(batch_size):
             # initialize hidden and output states
             # each batch can theoretically have a different start point
