@@ -32,20 +32,20 @@ def plot_inputs_outputs(inputs, outputs, times, rec_traj=None, targets=None):
                                      rec_traj[trial_idx, :, :n_hidden_plot],
                                      c=color)
             # axes[trial_idx + 1].set_yticks([-1, 0, 1])
-            axes[trial_idx + 1].set_ylabel('h(t)')
+            axes[trial_idx + 1].set_ylabel('X (hidden)')
 
         # outputs
-        axes[-1].plot(times, outputs[trial_idx, :, :], c=color, lw=2)
+        axes[-1].plot(times[times > 0], outputs[trial_idx, times > 0, :], c=color, lw=2)
         if targets is not None:
             axes[-1].plot(times, targets[trial_idx, :, :],
                           c=color, lw=2, ls=':')
 
     # axes[0].set_yticks([-2, 0, 2])
-    axes[0].set_ylabel('input')
+    axes[0].set_ylabel('I')
 
     axes[-1].set_xticks(np.arange(0, times[-1] + 0.2, 0.2))
     axes[-1].set_xlabel('time (s)')
     # axes[-1].set_yticks([0, 1])
-    axes[-1].set_ylabel('output')
+    axes[-1].set_ylabel('z')
 
     return fig
