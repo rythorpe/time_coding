@@ -20,15 +20,15 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_hidden, n_outputs = 1, 100, 1
+n_inputs, n_hidden, n_outputs = 1, 200, 1
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
             n_outputs=n_outputs, echo_state=False)
 model.to(device)
 print(model)
 
 loss_fn = nn.MSELoss()
-# optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
+# optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
 
 # %% create data
@@ -56,10 +56,8 @@ delays = [0.5]
 width = 0.02  # 20 ms
 data_y = torch.zeros((n_amplitudes, n_times, n_inputs))
 for output_idx, center in enumerate(delays):
-    data_y[output_idx, :, 0] = torch.tensor(gaussian_func(times, center, width))
-
-fig = plot_inputs_outputs(data_x, data_y, times)
-fig.show()
+    # data_y[output_idx, :, 0] = torch.tensor(gaussian_func(times, center, width))
+    data_y[output_idx, :, 0] = torch.tensor(np.sin(times * 2 * np.pi * 15))
 
 
 # %% define train and test functions that will loop over
@@ -73,7 +71,7 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
     # now, train using FORCE
-    force_step = 2
+    force_step = 1
     losses = list()
     t_0_idx = np.nonzero(times > 0)[0][0]
     for t_idx in np.arange(t_0_idx + force_step, n_times + force_step,
@@ -89,7 +87,8 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
-    return losses
+
+    return np.sum(losses)
 
 
 def train_intime(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
@@ -130,7 +129,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
     optimizer.zero_grad()
     loss = loss.item()
 
-    return [loss]
+    return loss
 
 
 def test(inputs, targets, times, model, loss_fn, h_0=None):
@@ -182,11 +181,15 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0):
         outputs, h_t = model(inputs, h_0=h_0, dt=dt)
         plt.figure()
         plt.plot(times[times > 0], h_transfer[:, h_argmax])
+        plt.ylabel('X (hidden)')
+        plt.xlabel('time (s)')
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
         print(f"Final loss: {loss.item():>7f}")
 
     fig = plot_inputs_outputs(inputs, outputs, times, rec_traj=h_t,
                               targets=targets)
+    axes = fig.get_axes()
+    axes[1].set_ylabel('f(X)')
     fig.show()
 
 
@@ -195,25 +198,30 @@ h_0 = (torch.rand(n_hidden) * 2) - 1  # uniform in (-1, 1)
 h_0 = torch.tile(h_0, (n_amplitudes, 1))  # replicate for each batch
 h_0 = h_0.to(device)
 
-# %% train and test model over a few epochs
-# n_iter = 200
-# loss_per_iter = list()
-# for t in range(n_iter):
-#     print(f"Iteration {t+1}\n-------------------------------")
-#     # loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-#     # loss = train_force(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-#     total_loss = train_intime(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-#     loss_per_iter.append(total_loss)
-#     # test(test_dataloader, model, loss_fn)
-# print("Done!")
+# plot model output before training
+test(data_x, data_y, times, model, loss_fn, h_0=h_0)
 
-# plt.figure()
-# plt.plot(loss_per_iter)
-# plt.xlabel('iteration')
-# plt.ylabel('loss')
+# %% train and test model over a few epochs
+n_iter = 30
+loss_per_iter = list()
+for t in range(n_iter):
+    print(f"Iteration {t+1}\n-------------------------------")
+    # loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    loss = train_force(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    # loss = train_intime(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    loss_per_iter.append(loss)
+    # test(test_dataloader, model, loss_fn)
+print("Done!")
+
+plt.figure()
+plt.plot(loss_per_iter)
+plt.xlabel('iteration')
+plt.ylabel('loss')
 
 # %%
+# plot model output after training
 test(data_x, data_y, times, model, loss_fn, h_0=h_0)
+# plot optimal model output given hidden unit responses
 set_optimimal_w_out(data_x, data_y, times, model, loss_fn, h_0=h_0)
 
 # %%

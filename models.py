@@ -32,15 +32,21 @@ class RNN(nn.Module):
 
         # initialize hidden weights
         w_hidden_std = gain / np.sqrt(prob_c * n_hidden)
-        torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
-                              std=w_hidden_std)
-        # torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
-        # rand_sources = np.random.choice(n_hidden,
+        # torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
+        #                       std=w_hidden_std)
+        torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
+        # prune_sources = np.random.choice(n_hidden,
         #                                 size=np.round((1 - prob_c) * n_hidden), # noqa
         #                                 replace=False)
         # rand_targets = np.random.choice(n_hidden,
         #                                 size=np.round((1 - prob_c) * n_hidden), # noqa
         #                                 replace=False)
+        self.W_hh_mask = torch.zeros((n_hidden, n_hidden))
+        n_possible_conns = np.numel(self.W_hh_mask)
+        keep_conn = np.random.choice(n_possible_conns,
+                                     size=np.round((1 - prob_c) * n_possible_conns), # noqa
+                                     replace=False)
+        self.W_hh_mask = self.W_hh_mask[np.random.choice()]
         # self.W_hh[rand_sources, rand_targets] = 0.0
 
         # initialize output weights
