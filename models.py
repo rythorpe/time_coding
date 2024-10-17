@@ -35,6 +35,8 @@ class RNN(nn.Module):
         # torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
         #                       std=w_hidden_std)
         torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
+        # create mask for non-zero connections; tuning weights of
+        # zeroed connections won't effect model dynamics
         n_conns_possible = n_hidden ** 2
         n_conns_chosen = int(np.round(prob_c * n_hidden ** 2))
         rand_conns = np.random.choice(n_conns_possible, size=n_conns_chosen,
