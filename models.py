@@ -15,7 +15,7 @@ class RNN(nn.Module):
         self.noise_std = 0.0  # 0.001
         self.tau = 0.01  # 10 ms
         gain = 1.6
-        prob_c = 0.5
+        prob_c = 0.3
 
         self.W_ih = nn.Parameter(torch.empty(n_hidden, n_inputs),
                                  requires_grad=False)
@@ -35,19 +35,13 @@ class RNN(nn.Module):
         # torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
         #                       std=w_hidden_std)
         torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
-        # prune_sources = np.random.choice(n_hidden,
-        #                                 size=np.round((1 - prob_c) * n_hidden), # noqa
-        #                                 replace=False)
-        # rand_targets = np.random.choice(n_hidden,
-        #                                 size=np.round((1 - prob_c) * n_hidden), # noqa
-        #                                 replace=False)
-        self.W_hh_mask = torch.zeros((n_hidden, n_hidden))
-        n_possible_conns = np.numel(self.W_hh_mask)
-        keep_conn = np.random.choice(n_possible_conns,
-                                     size=np.round((1 - prob_c) * n_possible_conns), # noqa
-                                     replace=False)
-        self.W_hh_mask = self.W_hh_mask[np.random.choice()]
-        # self.W_hh[rand_sources, rand_targets] = 0.0
+        n_conns_possible = n_hidden ** 2
+        n_conns_chosen = int(np.round(prob_c * n_hidden ** 2))
+        rand_conns = np.random.choice(n_conns_possible, size=n_conns_chosen,
+                                      replace=False)
+        self.W_hh_mask = torch.zeros(n_conns_possible, requires_grad=False)
+        self.W_hh_mask[rand_conns] = 1
+        self.W_hh_mask = torch.reshape(self.W_hh_mask, (n_hidden, n_hidden))
 
         # initialize output weights
         w_output_std = 1 / np.sqrt(n_hidden)
@@ -86,7 +80,7 @@ class RNN(nn.Module):
             # begin integration over time
             for t in range(seq_len):
                 self.noise.normal_(0, self.noise_std)
-                dhdt = (-h_t_minus_1 + h_transfer @ self.W_hh.T
+                dhdt = (-h_t_minus_1 + h_transfer @ (self.W_hh_mask * self.W_hh).T
                         + x[batch_idx, t] @ self.W_ih.T
                         + z_t_minus_1 @ self.W_zh.T
                         + self.noise) / self.tau

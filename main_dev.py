@@ -20,7 +20,7 @@ torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_hidden, n_outputs = 1, 200, 1
+n_inputs, n_hidden, n_outputs = 1, 300, 1
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
             n_outputs=n_outputs, echo_state=False)
 model.to(device)
@@ -57,7 +57,7 @@ width = 0.02  # 20 ms
 data_y = torch.zeros((n_amplitudes, n_times, n_inputs))
 for output_idx, center in enumerate(delays):
     # data_y[output_idx, :, 0] = torch.tensor(gaussian_func(times, center, width))
-    data_y[output_idx, :, 0] = torch.tensor(np.sin(times * 2 * np.pi * 15))
+    data_y[output_idx, :, 0] = torch.tensor(np.sin(times * 2 * np.pi * 2))
 
 
 # %% define train and test functions that will loop over
@@ -189,7 +189,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0):
     fig = plot_inputs_outputs(inputs, outputs, times, rec_traj=h_t,
                               targets=targets)
     axes = fig.get_axes()
-    axes[1].set_ylabel('f(X)')
+    axes[1].set_ylabel('X')
     fig.show()
 
 
@@ -202,7 +202,7 @@ h_0 = h_0.to(device)
 test(data_x, data_y, times, model, loss_fn, h_0=h_0)
 
 # %% train and test model over a few epochs
-n_iter = 30
+n_iter = 15
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
