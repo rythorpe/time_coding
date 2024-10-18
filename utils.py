@@ -17,5 +17,5 @@ def get_device():
     return device
 
 
-def gaussian_func(x, center, width):
+def gaussian(x, center, width):
     return np.exp(-(x - center) ** 2 / (2 * width ** 2))

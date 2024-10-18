@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import torch
 from torch import nn
 
-from utils import get_device, gaussian_func
+from utils import get_device, gaussian
 from models import RNN
 from opt import diff_loss, RLS_opt
 from viz import plot_inputs_outputs
@@ -27,7 +27,7 @@ model.to(device)
 print(model)
 
 loss_fn = nn.MSELoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
+optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
 
@@ -56,8 +56,8 @@ delays = [0.5]
 width = 0.02  # 20 ms
 data_y = torch.zeros((n_amplitudes, n_times, n_inputs))
 for output_idx, center in enumerate(delays):
-    # data_y[output_idx, :, 0] = torch.tensor(gaussian_func(times, center, width))
-    data_y[output_idx, :, 0] = torch.tensor(np.sin(times * 2 * np.pi * 2))
+    data_y[output_idx, :, 0] = torch.tensor(gaussian(times, center, width))
+    # data_y[output_idx, :, 0] = torch.tensor(np.sin(times * 2 * np.pi * 2))
 
 
 # %% define train and test functions that will loop over
@@ -202,7 +202,7 @@ h_0 = h_0.to(device)
 test(data_x, data_y, times, model, loss_fn, h_0=h_0)
 
 # %% train and test model over a few epochs
-n_iter = 15
+n_iter = 30
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
