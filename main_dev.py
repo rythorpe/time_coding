@@ -62,7 +62,7 @@ for output_idx, center in enumerate(delays):
 
 # %% define train and test functions that will loop over
 # each batch
-def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
+def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
     model.train()
     inputs, targets = inputs.to(device), targets.to(device)
 
@@ -71,13 +71,13 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
     # now, train using FORCE
-    force_step = 1
+    step_size = 1
     losses = list()
     t_0_idx = np.nonzero(times > 0)[0][0]
-    for t_idx in np.arange(t_0_idx + force_step, n_times + force_step,
-                           force_step):
+    for t_idx in np.arange(t_0_idx + step_size, n_times + step_size,
+                           step_size):
         # compute prediction error
-        t_minus_1_idx = t_idx - force_step
+        t_minus_1_idx = t_idx - step_size
         h_0 = h_t[:, -1, :].detach()
         outputs, h_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0, dt=dt)
         # loss at t - delta_t
@@ -89,47 +89,6 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
         losses.append(loss.item())
 
     return np.sum(losses)
-
-
-def train_intime(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
-    model.train()
-    inputs, targets = inputs.to(device), targets.to(device)
-
-    # run model without storing gradients until t=0
-    with torch.no_grad():
-        outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
-
-    # now, train using FORCE
-    losses = list()
-    t_0_idx = np.nonzero(times > 0)[0][0]
-    for t_idx in np.arange(t_0_idx, n_times):
-        # compute prediction error
-        h_0 = h_t[:, -1, :].detach()
-        outputs, h_t = model(inputs[:, t_idx:t_idx + 1, :], h_0=h_0, dt=dt)
-        # loss at t - delta_t
-        loss = loss_fn(outputs[:, 0, :], targets[:, t_idx, :])
-        losses.append(loss.item())
-        # backpropagation
-        loss.backward(retain_graph=True)
-    optimizer.step()
-    optimizer.zero_grad()
-
-    return np.sum(losses)
-
-
-def train(inputs, targets, times, model, loss_fn, optimizer, h_0=None):
-    model.train()
-    inputs, targets = inputs.to(device), targets.to(device)
-
-    outputs, _h_t = model(inputs, h_0=h_0, dt=dt)
-    loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
-    # backpropagation
-    loss.backward()
-    optimizer.step()
-    optimizer.zero_grad()
-    loss = loss.item()
-
-    return loss
 
 
 def test(inputs, targets, times, model, loss_fn, h_0=None):
@@ -202,15 +161,12 @@ h_0 = h_0.to(device)
 test(data_x, data_y, times, model, loss_fn, h_0=h_0)
 
 # %% train and test model over a few epochs
-n_iter = 30
+n_iter = 50
 loss_per_iter = list()
 for t in range(n_iter):
     print(f"Iteration {t+1}\n-------------------------------")
-    # loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-    loss = train_force(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
-    # loss = train_intime(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
+    loss = train(data_x, data_y, times, model, loss_fn, optimizer, h_0=h_0)
     loss_per_iter.append(loss)
-    # test(test_dataloader, model, loss_fn)
 print("Done!")
 
 plt.figure()

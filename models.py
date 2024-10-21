@@ -82,7 +82,9 @@ class RNN(nn.Module):
             # begin integration over time
             for t in range(seq_len):
                 self.noise.normal_(0, self.noise_std)
-                dhdt = (-h_t_minus_1 + h_transfer @ (self.W_hh_mask * self.W_hh).T
+                dhdt = (-h_t_minus_1
+                        # mask to enforces static, sparse recurrent connections
+                        + h_transfer @ (self.W_hh_mask * self.W_hh).T
                         + x[batch_idx, t] @ self.W_ih.T
                         + z_t_minus_1 @ self.W_zh.T
                         + self.noise) / self.tau
