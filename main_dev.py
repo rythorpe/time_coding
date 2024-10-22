@@ -9,14 +9,15 @@ from torch import nn
 
 from utils import get_device, gaussian
 from models import RNN
-from opt import diff_loss, RLS_opt
 from viz import plot_traj
 
 
 # %% set meta-parameters
 # device = get_device()
 device = 'cpu'
-torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
+# for reproducibility while troubleshooting; numpy is for model sparse conns
+torch.random.manual_seed(96317)
+np.random.seed(65489)
 
 
 # %% instantiate model, loss function, and optimizer
