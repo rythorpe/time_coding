@@ -16,12 +16,12 @@ from viz import plot_traj
 # device = get_device()
 device = 'cpu'
 # for reproducibility while troubleshooting; numpy is for model sparse conns
-torch.random.manual_seed(96317)
-np.random.seed(65489)
+torch.random.manual_seed(95214)
+np.random.seed(35107)
 
 
 # %% instantiate model, loss function, and optimizer
-n_inputs, n_hidden, n_outputs = 1, 300, 20
+n_inputs, n_hidden, n_outputs = 1, 300, 10
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
             n_outputs=n_outputs, echo_state=False)
 model.to(device)
@@ -40,8 +40,7 @@ times = np.arange(-0.1, tstop, dt)
 n_times = len(times)
 inputs = torch.zeros((n_batches, n_times, n_inputs))
 
-# output_delays = np.linspace(0.1, tstop - 0.1, n_outputs)  # w/ margins
-output_delays = np.linspace(0, tstop, n_outputs)  # w/o margins
+output_delays = np.linspace(0.1, tstop - 0.1, n_outputs)  # w/ margins
 width = 0.02  # 20 ms
 targets = torch.zeros((n_batches, n_times, n_outputs))
 for output_idx, center in enumerate(output_delays):

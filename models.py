@@ -60,13 +60,9 @@ class RNN(nn.Module):
         # self.register_buffer('h_0', torch.zeros(self.n_hidden))
         self.register_buffer('noise', torch.zeros(self.n_hidden))
 
-    def forward(self, x, h_0=None, dt=0.001):
+    def forward(self, x, h_0, dt=0.001):
         # assuming batches x time x n_inputs
         batch_size, seq_len, _ = x.size()
-
-        if h_0 is None:
-            h_0 = (torch.rand(self.n_hidden) * 2) - 1  # uniform in (-1, 1)
-            h_0 = torch.tile(h_0, (batch_size, 1))  # replicate for each batch
 
         h = torch.zeros(batch_size, seq_len, self.n_hidden)
         z = torch.zeros(batch_size, seq_len, self.n_outputs)
