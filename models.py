@@ -55,8 +55,8 @@ class RNN(nn.Module):
         else:
             torch.nn.init.zeros_(self.W_zh)
 
-        # create registered buffers (fancy attributes) that need to live on the
-        # same device as self
+        # create registered buffers (i.e., fancy attributes that need to live
+        # on the same device as self
         # self.register_buffer('h_0', torch.zeros(self.n_hidden))
         self.register_buffer('noise', torch.zeros(self.n_hidden))
 
