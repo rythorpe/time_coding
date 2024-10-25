@@ -65,7 +65,7 @@ def plot_traj(h_units, outputs, targets, times):
         n_hidden_plot = n_hidden
 
     # colors = plt.cm.binary(np.linspace(0.2, 1, n_outputs))
-    colors = plt.cm.inferno(np.linspace(0, 1, n_outputs))
+    colors = plt.cm.viridis_r(np.linspace(0, 1, n_outputs))
     fig, axes = plt.subplots(2, 1, sharex=True, figsize=(6, 6))
 
     # recurrent unit trajectories
