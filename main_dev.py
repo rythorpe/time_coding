@@ -22,7 +22,7 @@ np.random.seed(35107)
 # define parameter sweep
 n_samp = 2
 params = {'n_outputs': np.linspace(5, 25, n_samp),
-          'targ_std': np.linspace(5, 25, n_samp)}
+          'targ_std': np.linspace(0.005, 0.025, n_samp)}
 xx, yy = np.meshgrid(params['n_outputs'], params['targ_std'])
 param_vals = [pt for pt in zip(xx.flatten(), yy.flatten())]
 
