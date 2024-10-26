@@ -1,6 +1,7 @@
 """Optimization functions for ANN models."""
 
 import numpy as np
+import scipy
 import matplotlib.pyplot as plt
 
 import torch
@@ -42,6 +43,9 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
           debug_backprop=False):
     dt = times[1] - times[0]
     n_times = len(times)
+    init_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+                             model.W_hz.data.flatten()))
+    # init_params = init_params.numpy(force=True)
     model.train()
 
     # run model without storing gradients until t=0
@@ -73,8 +77,15 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
+    
+    updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+                                model.W_hz.data.flatten()))
+    # updated_params = updated_params.numpy(force=True)
+    # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
+    param_dist = (torch.linalg.norm(updated_params - init_params)
+                  / torch.linalg.norm(init_params))
 
-    return np.mean(losses)
+    return np.mean(losses), param_dist
 
 
 def test(inputs, targets, times, model, loss_fn, h_0):

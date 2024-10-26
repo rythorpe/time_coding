@@ -19,7 +19,6 @@ device = 'cpu'
 torch.random.manual_seed(95214)
 np.random.seed(35107)
 
-
 # %% instantiate model, loss function, and optimizer
 n_inputs, n_hidden, n_outputs = 1, 300, 10
 model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
@@ -62,13 +61,16 @@ inputs, targets, h_0 = inputs.to(device), targets.to(device), h_0.to(device)
 test(inputs, targets, times, model, loss_fn, h_0=h_0)
 
 # train model weights
-n_iter = 100
+max_iter = 200
 loss_per_iter = list()
-for t in range(n_iter):
+for t in range(max_iter):
     print(f"Iteration {t+1}\n-------------------------------")
-    loss = train(inputs, targets, times, model, loss_fn, optimizer, h_0=h_0)
+    loss, param_dist = train(inputs, targets, times, model, loss_fn, optimizer, h_0=h_0)
     loss_per_iter.append(loss)
-print("Done!")
+    if param_dist < 3e-4:
+        print(f'Convergence reached! {param_dist}')
+        break
+print("Training complete!!")
 
 plt.figure()
 plt.plot(loss_per_iter)
