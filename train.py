@@ -77,7 +77,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
-    
+
     updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
                                 model.W_hz.data.flatten()))
     # updated_params = updated_params.numpy(force=True)
@@ -88,7 +88,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
     return np.mean(losses), param_dist
 
 
-def test(inputs, targets, times, model, loss_fn, h_0):
+def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
     dt = times[1] - times[0]
     model.eval()
 
@@ -102,13 +102,16 @@ def test(inputs, targets, times, model, loss_fn, h_0):
     outputs_batch = outputs.cpu().squeeze()
     targets_batch = targets.cpu().squeeze()
 
-    fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
-                    targets=targets_batch, times=times)
-    fig.show()
+    if plot:
+        fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
+                        targets=targets_batch, times=times)
+        fig.show()
     print(f"Test loss: {loss.item():>7f}")
+    return h_t, loss
 
 
-def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0):
+def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
+                        plot=True):
     dt = times[1] - times[0]
     model.eval()
 
@@ -144,6 +147,8 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0):
     h_t_batch = h_t.cpu().squeeze()
     outputs_batch = outputs.cpu().squeeze()
     targets_batch = targets.cpu().squeeze()
-    fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
-                    targets=targets_batch, times=times)
-    fig.show()
+    if plot:
+        fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
+                        targets=targets_batch, times=times)
+        fig.show()
+    return outputs

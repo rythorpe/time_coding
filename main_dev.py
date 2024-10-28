@@ -1,8 +1,13 @@
 """Main development script for project."""
 
-# %%
+from collections import defaultdict
+
 import numpy as np
+import pandas as pd
+from scipy.signal import welch
 import matplotlib.pyplot as plt
+import seaborn as sns
+from joblib import Parallel, delayed
 
 import torch
 from torch import nn
@@ -21,93 +26,147 @@ np.random.seed(35107)
 
 # define parameter sweep
 n_samp = 5
-n_nets_per_samp = 10
+n_nets_per_samp = 20
 params = {'n_outputs': np.linspace(5, 25, n_samp),
           'targ_std': np.linspace(0.005, 0.025, n_samp)}
 xx, yy = np.meshgrid(params['n_outputs'], params['targ_std'])
 param_vals = [pt for pt in zip(xx.flatten(), yy.flatten())]
-
-for sample_idx, param_sample in enumerate(param_vals):
-    n_outputs, targ_std = int(param_sample[0]), param_sample[1]
-
-    # observe a few random nets for each parameter sample
-    for trial_idx in range(n_nets_per_samp):
-
-        # instantiate model, loss function, and optimizer
-        # n_inputs, n_hidden, n_outputs = 1, 300, 10
-        n_inputs, n_hidden = 1, 300
-        model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
-                    n_outputs=n_outputs, echo_state=False)
-        model.to(device)
-        # print(model)
-
-        loss_fn = nn.MSELoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-
-        # set parameters
-        # simulation parameters
-        dt = 1e-3  # 1 ms
-        tstop = 1.1  # 1 sec
-        times = np.arange(-0.1, tstop, dt)
-        n_times = len(times)
-
-        # define inputs (for contextual modulation / recurrent perturbations)
-        n_batches = 1
-        inputs = torch.zeros((n_batches, n_times, n_inputs))
-
-        # define output targets
-        output_delays = np.linspace(0.1, tstop - 0.1, n_outputs)  # w/ margins
-        targets = torch.zeros((n_batches, n_times, n_outputs))
-        for output_idx, center in enumerate(output_delays):
-            targets[0, :, output_idx] = torch.tensor(gaussian(times, center, targ_std))
+# repeat samples to get multiple random nets per configuration
+param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
+n_total_trials = param_vals.shape[0]
+# metrics = defaultdict(list)
 
 
-        # set initial conditions of recurrent units fixed across iterations of
-        # training and testing
-        h_0 = (torch.rand(n_hidden) * 2) - 1  # uniform in (-1, 1)
-        h_0 = torch.tile(h_0, (n_batches, 1))  # replicate for each batch
+def train_test_random_net(params):
+    '''Call this func on each parallel process.'''
+    n_outputs, targ_std = int(params[0]), params[1]
+    metrics = dict()
 
-        # run opt routine
-        # move to desired device
-        inputs, targets, h_0 = inputs.to(device), targets.to(device), h_0.to(device)
+    # instantiate model, loss function, and optimizer
+    # n_inputs, n_hidden, n_outputs = 1, 300, 10
+    n_inputs, n_hidden = 1, 300
+    model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
+                n_outputs=n_outputs, echo_state=False)
+    model.to(device)
+    # print(model)
 
-        # plot model output before training
-        test(inputs, targets, times, model, loss_fn, h_0=h_0)
+    loss_fn = nn.MSELoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
-        # train model weights
-        max_iter = 300
-        convergence_reached = False
-        loss_per_iter = list()
-        for t in range(max_iter):
-            print(f"Iteration {t + 1}")
-            loss, param_dist = train(inputs, targets, times, model, loss_fn, optimizer, h_0=h_0)
-            loss_per_iter.append(loss)
-            if param_dist < 3e-4:
-                convergence_reached = True
-                break
-        print(f"Trial {sample_idx} training complete!!")
-        if not convergence_reached:
-            print(f"Warning: didn't converge (param_dist={param_dist})!!")
+    # set parameters
+    # simulation parameters
+    dt = 1e-3  # 1 ms
+    tstop = 1.1  # 1 sec
+    times = np.arange(-0.1, tstop, dt)
+    n_times = len(times)
 
-        plt.figure()
-        plt.plot(loss_per_iter)
-        plt.xlabel('iteration')
-        plt.ylabel('loss')
+    # define inputs (for contextual modulation / recurrent perturbations)
+    n_batches = 1
+    inputs = torch.zeros((n_batches, n_times, n_inputs))
 
-        # investigate fitted model
-        # plot model output after training
-        test(inputs, targets, times, model, loss_fn, h_0=h_0)
+    # define output targets
+    output_delays = np.linspace(0.1, tstop - 0.1, n_outputs)  # w/ margins
+    targets = torch.zeros((n_batches, n_times, n_outputs))
+    for output_idx, center in enumerate(output_delays):
+        targets[0, :, output_idx] = torch.tensor(gaussian(times, center, targ_std))
 
-        # calculate metrics-of-interest for fitted model sim
-        # recurrent correlation matrix
-        # recurrent spectrum
-        # mutual entropy (recurrent and target gaussian)
-        # n_convergence_iters
-        # final MSE
-        # final avg std
-        # final std as a function of latency
+    # set initial conditions of recurrent units fixed across iterations of
+    # training and testing
+    h_0 = (torch.rand(n_hidden) * 2) - 1  # uniform in (-1, 1)
+    h_0 = torch.tile(h_0, (n_batches, 1))  # replicate for each batch
 
-        # solve for optimal model output weights given hidden unit responses
-        set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0=h_0)
+    # run opt routine
+    # move to desired device
+    inputs, targets, h_0 = inputs.to(device), targets.to(device), h_0.to(device)
 
-        # baseline noise
+    # plot model output before training
+    _, _ = test(inputs, targets, times, model, loss_fn, h_0=h_0, plot=False)
+
+    # train model weights
+    max_iter = 400
+    convergence_reached = False
+    loss_per_iter = list()
+    for iter_idx in range(max_iter):
+        print(f"Iteration {iter_idx + 1}")
+        loss, param_dist = train(inputs, targets, times, model, loss_fn, optimizer, h_0=h_0)
+        loss_per_iter.append(loss)
+        if param_dist < 3e-4:
+            convergence_reached = True
+            break
+    # print(f"Trial {sample_idx} training complete!!")
+    if not convergence_reached:
+        print(f"Warning: didn't converge (param_dist={param_dist})!!")
+
+    plt.figure()
+    plt.plot(loss_per_iter)
+    plt.xlabel('iteration')
+    plt.ylabel('loss')
+
+    # investigate fitted model
+    # plot model output after training
+    h_t, loss = test(inputs, targets, times, model, loss_fn, h_0=h_0,
+                     plot=False)
+    h_t_batch = h_t.cpu().squeeze()
+
+    # calculate metrics-of-interest for fitted model sim
+    ####################################################
+    # avg recurrent cross-correlation
+    xcorr = np.corrcoef(h_t_batch, rowvar=False)
+    avg_xcorr = xcorr.mean()
+    metrics['avg_xcorr'] = avg_xcorr
+
+    # spectral overlap
+    fs = 1 / dt
+    freqs_, targ_spec = welch(gaussian(times, tstop / 2, targ_std), fs=fs)
+    hidden_specs = list()
+    for h_ts in h_t_batch.T:
+        freqs_, hidden_spec = welch(h_ts[times > 0], fs=fs)
+        hidden_specs.append(hidden_spec)
+    hidden_spec = np.mean(hidden_specs, axis=0)
+    # normalize spectral densities
+    targ_spec /= np.sum(targ_spec)
+    hidden_spec /= np.sum(hidden_spec)
+    spec_overlap = np.sum(np.min([targ_spec, hidden_spec], axis=0))
+    metrics['spec_overlap'] = spec_overlap
+    # n_convergence_iters
+    n_iters = iter_idx
+    metrics['n_iters'] = n_iters
+    metrics['convergence'] = int(convergence_reached)
+
+    # final MSE
+    metrics['final_mse'] = float(loss)
+
+    # [WIP] final avg std
+    # [WIP] final std as a function of latency
+
+    # solve for optimal model output weights given hidden unit responses
+    outputs = set_optimimal_w_out(inputs, targets, times, model, loss_fn,
+                                  h_0=h_0, plot=False)
+    # baseline noise
+    outputs_batch = outputs.cpu().squeeze()
+    output_baseline_noise = outputs_batch[times <= 0, :].std()
+    metrics['output_baseline_noise'] = float(output_baseline_noise)
+    ####################################################
+    return metrics
+
+
+# run in parallel
+res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_vals[idx, :])
+                          for idx in range(n_total_trials))
+
+metrics = defaultdict(list)
+for key in res[0].keys():
+    for trial in res:
+        metrics[key].append(trial[key])
+df = pd.DataFrame(metrics)
+labels = list(params.keys())
+df.insert(0, labels[0], value=param_vals[:, 0])
+df.insert(1, labels[1], value=param_vals[:, 1])
+
+
+fig = plt.figure(figsize=(6, 3))
+sns.stripplot(data=df, x='targ_std', y='output_baseline_noise', hue='n_outputs',
+              dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
+sns.barplot(data=df, x='targ_std', y='output_baseline_noise', hue='n_outputs',
+            errorbar=('ci', 95), n_boot=1000, capsize=.2)
+plt.ylabel('cross-correlation')
