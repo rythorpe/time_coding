@@ -149,6 +149,7 @@ def train_test_random_net(params):
     ####################################################
     return metrics
 
+
 # run sequentially
 # for param in param_vals:
 #     train_test_random_net(param)
