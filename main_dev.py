@@ -105,7 +105,7 @@ def train_test_random_net(params):
     # investigate fitted model
     # plot model output after training
     h_t, loss = test(inputs, targets, times, model, loss_fn, h_0=h_0,
-                     plot=False)
+                     plot=True)
     h_t_batch = h_t.cpu().squeeze()
 
     # calculate metrics-of-interest for fitted model sim
@@ -141,7 +141,7 @@ def train_test_random_net(params):
 
     # solve for optimal model output weights given hidden unit responses
     outputs = set_optimimal_w_out(inputs, targets, times, model, loss_fn,
-                                  h_0=h_0, plot=False)
+                                  h_0=h_0, plot=True)
     # baseline noise
     outputs_batch = outputs.cpu().squeeze()
     output_baseline_noise = outputs_batch[times <= 0, :].std()
@@ -149,6 +149,9 @@ def train_test_random_net(params):
     ####################################################
     return metrics
 
+# run sequentially
+# for param in param_vals:
+#     train_test_random_net(param)
 
 # run in parallel
 res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_vals[idx, :])
@@ -164,9 +167,41 @@ df.insert(0, labels[0], value=param_vals[:, 0])
 df.insert(1, labels[1], value=param_vals[:, 1])
 
 
-fig = plt.figure(figsize=(6, 3))
-sns.stripplot(data=df, x='targ_std', y='output_baseline_noise', hue='n_outputs',
+fig = plt.figure(figsize=(6, 4))
+sns.stripplot(data=df, x='targ_std', y='output_baseline_noise',
               dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
-sns.barplot(data=df, x='targ_std', y='output_baseline_noise', hue='n_outputs',
+sns.barplot(data=df, x='targ_std', y='output_baseline_noise', estimator='median',
             errorbar=('ci', 95), n_boot=1000, capsize=.2)
-plt.ylabel('cross-correlation')
+plt.ylabel('baseline noise')
+
+fig = plt.figure(figsize=(6, 4))
+sns.stripplot(data=df, x='targ_std', y='final_mse', hue='n_outputs',
+              dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
+sns.barplot(data=df, x='targ_std', y='final_mse', hue='n_outputs',
+            estimator='median', errorbar=('ci', 95), n_boot=1000, capsize=.2)
+plt.ylabel('final loss (MSE)')
+
+fig = plt.figure(figsize=(6, 4))
+sns.stripplot(data=df, x='targ_std', y='n_iters', hue='n_outputs',
+              dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
+sns.barplot(data=df, x='targ_std', y='n_iters', hue='n_outputs',
+            estimator='median', errorbar=('ci', 95), n_boot=1000, capsize=.2)
+plt.ylabel('# iterations for convergence')
+
+fig = plt.figure(figsize=(6, 4))
+sns.stripplot(data=df, x='targ_std', y='spec_overlap', hue='n_outputs',
+              dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
+sns.barplot(data=df, x='targ_std', y='spec_overlap', hue='n_outputs',
+            estimator='median', errorbar=('ci', 95), n_boot=1000, capsize=.2)
+plt.ylabel('spectral overlap')
+
+fig = plt.figure(figsize=(5, 5))
+sns.scatterplot(data=df, x='spec_overlap', y='n_iters', hue='targ_std',
+                edgecolor='w', size=4, alpha=.4)
+
+fig = plt.figure(figsize=(6, 4))
+sns.stripplot(data=df, x='targ_std', y='avg_xcorr',
+              dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
+sns.barplot(data=df, x='targ_std', y='avg_xcorr',
+            estimator='median', errorbar=('ci', 95), n_boot=1000, capsize=.2)
+plt.ylabel('hidden unit cross-correlation')
