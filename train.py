@@ -8,11 +8,12 @@ import torch
 from viz import plot_traj
 
 
-def step_sangers_rule(W, inputs, outputs, lr=1e-3):
+def step_sangers_rule(W, W_mask, inputs, outputs, lr=1e-5):
     '''Online unsupervised learning method implementing Sanger's Rule.'''
     xcov = torch.outer(outputs, inputs)
     autocov = torch.outer(outputs, outputs)
-    dW = lr * (xcov - torch.tril(autocov) @ W)
+    # mask for non-zero connections
+    dW = lr * (xcov - torch.tril(autocov) @ (W * W_mask)) * W_mask
     return dW
 
 
@@ -37,14 +38,16 @@ def pre_train(inputs, times, model, h_0):
             h_0 = h_t[:, -1, :].detach()
             outputs, h_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0,
                                  dt=dt)
-            model.W_hh.data += step_sangers_rule(h_0, h_t)
+            model.W_hh.data += step_sangers_rule(model.W_hh.data,
+                                                 model.W_hh_mask,
+                                                 h_0[0], h_t[0, 0])
 
     updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
                                 model.W_hz.data.flatten()))
     param_dist = (torch.linalg.norm(updated_params - init_params)
                   / torch.linalg.norm(init_params))
 
-    return param_dist
+    return param_dist.numpy(force=True)
 
 
 def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
@@ -142,13 +145,13 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         # W_hz_ = cov.inverse() @ (h_transfer.T @ targets_)
         W_hz_ = torch.linalg.solve(cov, (h_transfer.T @ targets_))
         model.W_hz[:] = W_hz_.T
-        h_argmax = torch.argmax(model.W_hz.abs(), dim=1)
+        # h_argmax = torch.argmax(model.W_hz.abs(), dim=1)
 
         outputs, h_t = model(inputs, h_0=h_0, dt=dt)
-        plt.figure()
-        plt.plot(times[times > 0], h_transfer[:, h_argmax])
-        plt.ylabel('f(X)')
-        plt.xlabel('time (s)')
+        # plt.figure()
+        # plt.plot(times[times > 0], h_transfer[:, h_argmax])
+        # plt.ylabel('f(X)')
+        # plt.xlabel('time (s)')
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
         print(f"Min. loss: {loss.item():>7f}")
 

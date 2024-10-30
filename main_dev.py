@@ -14,7 +14,7 @@ from torch import nn
 
 from utils import gaussian
 from models import RNN
-from train import test, train, set_optimimal_w_out
+from train import test, pre_train, train, set_optimimal_w_out
 
 
 # set meta-parameters
@@ -82,7 +82,7 @@ def train_test_random_net(params):
     h_0 = h_0.to(device)
 
     # plot model output before training
-    _, _ = test(inputs, targets, times, model, loss_fn, h_0=h_0, plot=False)
+    _, _ = test(inputs, targets, times, model, loss_fn, h_0, plot=True)
 
     # train model weights
     max_iter = 400
@@ -91,7 +91,9 @@ def train_test_random_net(params):
     for iter_idx in range(max_iter):
         print(f"Iteration {iter_idx + 1}")
         loss, param_dist = train(inputs, targets, times, model, loss_fn,
-                                 optimizer, h_0=h_0)
+                                 optimizer, h_0)
+        # param_dist = pre_train(inputs, times, model, h_0)
+        # loss = param_dist
         loss_per_iter.append(loss)
         if param_dist < 3e-4:
             convergence_reached = True
@@ -107,8 +109,7 @@ def train_test_random_net(params):
 
     # investigate fitted model
     # plot model output after training
-    h_t, loss = test(inputs, targets, times, model, loss_fn, h_0=h_0,
-                     plot=True)
+    h_t, loss = test(inputs, targets, times, model, loss_fn, h_0, plot=False)
     h_t_batch = h_t.cpu().squeeze()
 
     # calculate metrics-of-interest for fitted model sim
@@ -144,7 +145,7 @@ def train_test_random_net(params):
 
     # solve for optimal model output weights given hidden unit responses
     outputs = set_optimimal_w_out(inputs, targets, times, model, loss_fn,
-                                  h_0=h_0, plot=True)
+                                  h_0=h_0, plot=False)
     # baseline noise
     outputs_batch = outputs.cpu().squeeze()
     output_baseline_noise = outputs_batch[times <= 0, :].std()
