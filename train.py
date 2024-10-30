@@ -10,12 +10,43 @@ from torch.optim import Optimizer
 from viz import plot_traj
 
 
-def sangers_rule(W, inputs, outputs, lr):
+def step_sangers_rule(W, inputs, outputs, lr=1e-3):
     '''Online unsupervised learning method implementing Sanger's Rule.'''
     xcov = torch.outer(outputs, inputs)
     autocov = torch.outer(outputs, outputs)
     dW = lr * (xcov - torch.tril(autocov) @ W)
     return dW
+
+
+def pre_train(inputs, times, model, h_0):
+    dt = times[1] - times[0]
+    n_times = len(times)
+    init_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+                             model.W_hz.data.flatten()))
+    model.train()
+
+    # run model without storing gradients until t=0
+    with torch.no_grad():
+        outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
+
+        # now, train using at each time point using Sanger's Rule
+        step_size = 1
+        t_0_idx = np.nonzero(times > 0)[0][0]
+        for t_idx in np.arange(t_0_idx + step_size, n_times + step_size,
+                               step_size):
+            # compute prediction error
+            t_minus_1_idx = t_idx - step_size
+            h_0 = h_t[:, -1, :].detach()
+            outputs, h_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0,
+                                 dt=dt)
+            model.W_hh.data += step_sangers_rule(h_0, h_t)
+
+    updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+                                model.W_hz.data.flatten()))
+    param_dist = (torch.linalg.norm(updated_params - init_params)
+                  / torch.linalg.norm(init_params))
+
+    return param_dist
 
 
 def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
