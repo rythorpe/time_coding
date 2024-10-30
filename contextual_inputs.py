@@ -7,14 +7,12 @@ import matplotlib.pyplot as plt
 import torch
 from torch import nn
 
-from utils import get_device, gaussian
+from utils import gaussian
 from models import RNN
-from opt import diff_loss, RLS_opt
 from viz import plot_inputs_outputs
 
 
 # %% set meta-parameters
-# device = get_device()
 device = 'cpu'
 torch.random.manual_seed(1234)  # for reproducibility while troubleshooting
 

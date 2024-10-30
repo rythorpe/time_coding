@@ -12,13 +12,12 @@ from joblib import Parallel, delayed
 import torch
 from torch import nn
 
-from utils import get_device, gaussian
+from utils import gaussian
 from models import RNN
 from train import test, train, set_optimimal_w_out
 
 
 # set meta-parameters
-# device = get_device()
 device = 'cpu'
 # for reproducibility while troubleshooting; numpy is for model sparse conns
 torch.random.manual_seed(95214)
@@ -68,7 +67,8 @@ def train_test_random_net(params):
     output_delays = np.linspace(0.1, tstop - 0.1, n_outputs)  # w/ margins
     targets = torch.zeros((n_batches, n_times, n_outputs))
     for output_idx, center in enumerate(output_delays):
-        targets[0, :, output_idx] = torch.tensor(gaussian(times, center, targ_std))
+        targets[0, :, output_idx] = torch.tensor(gaussian(times, center,
+                                                          targ_std))
 
     # set initial conditions of recurrent units fixed across iterations of
     # training and testing
@@ -77,7 +77,9 @@ def train_test_random_net(params):
 
     # run opt routine
     # move to desired device
-    inputs, targets, h_0 = inputs.to(device), targets.to(device), h_0.to(device)
+    inputs = inputs.to(device)
+    targets = targets.to(device)
+    h_0 = h_0.to(device)
 
     # plot model output before training
     _, _ = test(inputs, targets, times, model, loss_fn, h_0=h_0, plot=False)
@@ -88,7 +90,8 @@ def train_test_random_net(params):
     loss_per_iter = list()
     for iter_idx in range(max_iter):
         print(f"Iteration {iter_idx + 1}")
-        loss, param_dist = train(inputs, targets, times, model, loss_fn, optimizer, h_0=h_0)
+        loss, param_dist = train(inputs, targets, times, model, loss_fn,
+                                 optimizer, h_0=h_0)
         loss_per_iter.append(loss)
         if param_dist < 3e-4:
             convergence_reached = True
@@ -171,8 +174,8 @@ df.insert(1, labels[1], value=param_vals[:, 1])
 fig = plt.figure(figsize=(6, 4))
 sns.stripplot(data=df, x='targ_std', y='output_baseline_noise',
               dodge=True, edgecolor='w', linewidth=.5, size=4, alpha=.4)
-sns.barplot(data=df, x='targ_std', y='output_baseline_noise', estimator='median',
-            errorbar=('ci', 95), n_boot=1000, capsize=.2)
+sns.barplot(data=df, x='targ_std', y='output_baseline_noise',
+            estimator='median', errorbar=('ci', 95), n_boot=1000, capsize=.2)
 plt.ylabel('baseline noise')
 
 fig = plt.figure(figsize=(6, 4))

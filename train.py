@@ -1,11 +1,9 @@
 """Optimization functions for ANN models."""
 
 import numpy as np
-import scipy
 import matplotlib.pyplot as plt
 
 import torch
-from torch.optim import Optimizer
 
 from viz import plot_traj
 

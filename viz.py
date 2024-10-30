@@ -2,7 +2,6 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 
 def plot_inputs_outputs(inputs, outputs, times, rec_traj=None, targets=None):
