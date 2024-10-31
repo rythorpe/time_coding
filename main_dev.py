@@ -33,7 +33,6 @@ param_vals = [pt for pt in zip(xx.flatten(), yy.flatten())]
 # repeat samples to get multiple random nets per configuration
 param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 n_total_trials = param_vals.shape[0]
-# metrics = defaultdict(list)
 
 
 def train_test_random_net(params):
@@ -64,7 +63,10 @@ def train_test_random_net(params):
     inputs = torch.zeros((n_batches, n_times, n_inputs))
 
     # define output targets
-    output_delays = np.linspace(0.1, tstop - 0.1, n_outputs)  # w/ margins
+    delta_delay = (tstop - 0.1) / n_outputs
+    # tile center of target delays spanning sim duration (minus margins)
+    output_delays = np.arange(delta_delay, tstop - 0.1 + delta_delay,
+                              delta_delay)
     targets = torch.zeros((n_batches, n_times, n_outputs))
     for output_idx, center in enumerate(output_delays):
         targets[0, :, output_idx] = torch.tensor(gaussian(times, center,
@@ -82,7 +84,7 @@ def train_test_random_net(params):
     h_0 = h_0.to(device)
 
     # plot model output before training
-    _, _ = test(inputs, targets, times, model, loss_fn, h_0, plot=True)
+    _, _ = test(inputs, targets, times, model, loss_fn, h_0, plot=False)
 
     # train model weights
     max_iter = 400
@@ -154,11 +156,14 @@ def train_test_random_net(params):
     return metrics
 
 
-# run sequentially
+# run single trial
+# train_test_random_net([5, 0.03])
+
+# run sweep sequentially
 # for param in param_vals:
 #     train_test_random_net(param)
 
-# run in parallel
+# run sweep in parallel
 res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_vals[idx, :])
                           for idx in range(n_total_trials))
 
