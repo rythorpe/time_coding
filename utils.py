@@ -24,6 +24,16 @@ def gaussian(x, center, width):
     return np.exp(-(x - center) ** 2 / (2 * width ** 2))
 
 
+def compute_optimal_basis(column_vars, n_basis_funcs=10):
+    # each column is a variable / channel
+    # each row is an observation / sample
+    cov = np.cov(column_vars, rowvar=False)
+    eigvals, eigvecs = scipy.linalg.eig(cov)
+    sort_idxs = np.argsort(eigvals)[-1::-1] # reverse for descending order
+    eigvals, eigvecs = eigvals[sort_idxs], eigvecs[:, sort_idxs]
+    return column_vars @ eigvecs[:, :n_basis_funcs]  # time x basis func
+
+
 def get_gaussian_targets(n_batches, n_outputs, times, targ_std):
     tstop = times[-1]
     n_times = len(times)
@@ -60,11 +70,7 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
 
     # 1st (and only) batch, 1st third of recurrent trajectories
     h_transfer_subset = np.array(h_transfer[0, :, :n_hidden // 3])
-    cov = np.cov(h_transfer_subset, rowvar=False)
-    eigvals, eigvecs = scipy.linalg.eig(cov)
-    sort_idxs = np.argsort(eigvals)[-1::-1] # reverse for descending order
-    eigvals, eigvecs = eigvals[sort_idxs], eigvecs[:, sort_idxs]
-    opt_basis = h_transfer_subset @ eigvecs[:, :n_opt_basis]  # time x basis func
+    opt_basis = compute_optimal_basis(h_transfer_subset, n_basis_funcs=n_opt_basis)
 
     if plot:
         fig, axes = plt.subplots(1, 2)
