@@ -131,8 +131,8 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         # Compute prediction error
         outputs, h_t = model(inputs, h_0=h_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
-        activation = torch.nn.Tanh()
-        h_transfer = activation(h_t)
+        transfer_func = torch.nn.Tanh()
+        h_transfer = transfer_func(h_t)
 
         h_t = h_t.cpu()
         outputs = outputs.cpu()
