@@ -12,7 +12,7 @@ from joblib import Parallel, delayed
 import torch
 from torch import nn
 
-from utils import gaussian, get_gaussian_targets
+from utils import gaussian, get_gaussian_targets, get_random_targets
 from models import RNN
 from train import test, pre_train, train, set_optimimal_w_out
 
@@ -63,7 +63,11 @@ def train_test_random_net(params, plot_sim=False):
     inputs = torch.zeros((n_batches, n_times, n_inputs))
 
     # define output targets
-    targets = get_gaussian_targets(n_batches, n_outputs, times, targ_std)
+    # targets = get_gaussian_targets(n_batches, n_outputs, times, targ_std)
+    targets, opt_basis = get_random_targets(RNN, inputs,
+                                            (n_inputs, n_hidden, n_outputs),
+                                            times, n_opt_basis=n_outputs,
+                                            plot=True)
 
     # set initial conditions of recurrent units fixed across iterations of
     # training and testing
