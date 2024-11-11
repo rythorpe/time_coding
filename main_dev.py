@@ -68,7 +68,7 @@ def train_test_random_net(params, plot_sim=False):
                                             (n_inputs, n_hidden, n_outputs),
                                             times, n_opt_basis=n_outputs,
                                             plot=True)
-
+    x = 1 / 0
     # set initial conditions of recurrent units fixed across iterations of
     # training and testing
     h_0 = (torch.rand(n_hidden) * 2) - 1  # uniform in (-1, 1)
@@ -156,7 +156,7 @@ def train_test_random_net(params, plot_sim=False):
 
 
 # run single trial
-train_test_random_net([5, 0.03], plot_sim=True)
+train_test_random_net([10, 0.03], plot_sim=True)
 
 # run sweep sequentially
 # for param in param_vals:
