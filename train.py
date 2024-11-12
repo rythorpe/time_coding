@@ -117,7 +117,10 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
         fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
                         targets=targets_batch, times=times)
         fig.show()
-    print(f"Test loss: {loss.item():>7f}")
+    try:
+        print(f"Test loss: {loss.item():>7f}")
+    except RuntimeError:
+        Warning("Test loss isn't a scalar!")
     return h_t, loss
 
 

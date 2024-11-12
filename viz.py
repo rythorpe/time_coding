@@ -2,6 +2,11 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
+
+# set plotting params
+custom_params = {'axes.spines.right': False, 'axes.spines.top': False}
+sns.set_theme(style='ticks', rc=custom_params)
 
 
 def plot_inputs_outputs(inputs, outputs, times, rec_traj=None, targets=None):
@@ -81,5 +86,22 @@ def plot_traj(h_units, outputs, targets, times):
     axes[1].set_xticks(np.arange(0, 1.2, 0.2))
     axes[1].set_xlabel('time (s)')
     axes[1].set_ylabel('output')
+
+    return fig
+
+
+def plot_stability(stability, delay_times, perturb_mags):
+    colors = plt.cm.inferno_r(np.linspace(0.1, 1, len(perturb_mags)))
+    fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+    for perturb_mag_idx, perturb_stability in enumerate(stability):
+        perturb_mag_str = f'{perturb_mags[perturb_mag_idx]}'
+        ax.plot(delay_times, perturb_stability, label=perturb_mag_str,
+                c=colors[perturb_mag_idx], lw=2)
+    ax.legend()
+    ax.set_yticks([0.5, 1])
+    ax.set_xticks([0, 0.5, 1])
+    ax.set_ylabel('target stability')
+    ax.set_xlabel('time (s)')
+    fig.tight_layout()
 
     return fig

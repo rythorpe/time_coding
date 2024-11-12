@@ -46,7 +46,7 @@ def get_gaussian_targets(n_batches, n_outputs, times, targ_std):
     for output_idx, center in enumerate(output_delays):
         targets[0, :, output_idx] = torch.tensor(gaussian(times, center,
                                                           targ_std))
-    return targets
+    return targets, output_delays
 
 
 def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
