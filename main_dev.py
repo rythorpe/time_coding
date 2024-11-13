@@ -29,7 +29,7 @@ np.random.seed(35107)
 
 # define parameter sweep
 # n_samp = 3
-n_nets_per_samp = 20
+n_nets_per_samp = 30
 # params = {'n_outputs': np.linspace(5, 25, n_samp),
 #           'targ_std': np.linspace(0.005, 0.025, n_samp)}
 # xx, yy = np.meshgrid(params['n_outputs'], params['targ_std'])
@@ -37,7 +37,7 @@ n_nets_per_samp = 20
 # # repeat samples to get multiple random nets per configuration
 # param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 # n_total_trials = param_vals.shape[0]
-params = {'perturbation_mag': np.array([0.0, 0.001, 0.01, 0.1])}
+params = {'perturbation_mag': np.array([0.0, 0.005, 0.015, 0.020, 0.025])}
 
 
 def train_test_random_net(params=None, plot_sim=False):
