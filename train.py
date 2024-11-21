@@ -63,9 +63,11 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
     with torch.no_grad():
         outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
-    # if debug_backprop:
-    #     dWhh_dloss_true = torch.empty(n_hidden, n_hidden,
-    #                                   requires_grad=False)
+    if debug_backprop:
+        n_hidden = model.W_hh.data.shape[0]
+        W_hh_original = np.full([n_hidden, n_hidden], fill_value=np.nan)
+        loss_original = np.nan
+        grad_errs = list()
 
     # now, train using FORCE
     step_size = 1
@@ -81,11 +83,20 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         loss = loss_fn(outputs[:, 0, :], targets[:, t_minus_1_idx, :])
         # backpropagation
         loss.backward()
-
-        # if debug_backprop:
-        #     dWhh_dloss_true = model.W_hh[:, :].copy().flatten()
-
         optimizer.step()
+        if debug_backprop:
+            W_hh_updated = np.array(model.W_hh.data)
+            if np.all(np.isfinite(W_hh_original)):
+                dloss = np.array(loss.detach()) - loss_original
+                dloss_dWhh_true = dloss / dWhh
+                mask = np.isfinite(dloss_dWhh_true)
+                dloss_dWhh_est = np.array(model.W_hh.grad)
+                grad_err = np.linalg.norm(dloss_dWhh_true[mask] - dloss_dWhh_est[mask])
+                grad_errs.append(grad_err)
+
+            dWhh = W_hh_updated - W_hh_original
+            W_hh_original = W_hh_updated.copy()
+            loss_original = np.array(loss.detach())
         optimizer.zero_grad()
         losses.append(loss.item())
 
@@ -95,6 +106,9 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
     # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
     param_dist = (torch.linalg.norm(updated_params - init_params)
                   / torch.linalg.norm(init_params))
+
+    if debug_backprop:
+        return np.mean(losses), param_dist, grad_errs
 
     return np.mean(losses), param_dist
 

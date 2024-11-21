@@ -92,13 +92,18 @@ def train_test_random_net(params=None, plot_sim=False):
     _, _ = test(inputs, targets, times, model, loss_fn, h_0, plot=plot_sim)
 
     # train model weights
-    max_iter = 400
+    max_iter = 20
     convergence_reached = False
     loss_per_iter = list()
+    fig_err, axes = plt.subplots(1, 1)
     for iter_idx in range(max_iter):
         print(f"Iteration {iter_idx + 1}")
-        loss, param_dist = train(inputs, targets, times, model, loss_fn,
-                                 optimizer, h_0)
+        # loss, param_dist = train(inputs, targets, times, model, loss_fn,
+        #                          optimizer, h_0)
+        loss, param_dist, grad_errs = train(inputs, targets, times, model,
+                                            loss_fn, optimizer, h_0,
+                                            debug_backprop=True)
+        axes.plot(grad_errs)
         # param_dist = pre_train(inputs, times, model, h_0)
         # loss = param_dist
         loss_per_iter.append(loss)
@@ -108,6 +113,8 @@ def train_test_random_net(params=None, plot_sim=False):
     # print(f"Trial {sample_idx} training complete!!")
     if not convergence_reached:
         print(f"Warning: didn't converge (param_dist={param_dist})!!")
+
+    fig_err.show()
 
     if plot_sim:
         plt.figure()
@@ -189,22 +196,22 @@ def train_test_random_net(params=None, plot_sim=False):
 
 
 # run single trial
-# res = train_test_random_net(params, plot_sim=True)
+res = train_test_random_net(params, plot_sim=True)
 
 # run sweep sequentially
 # for param in param_vals:
 #     train_test_random_net(params)
 
 # run sweep in parallel
-res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
-                          for idx in range(n_nets_per_samp))
+# res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
+#                           for idx in range(n_nets_per_samp))
 
-metrics = defaultdict(list)
-for key in res[0].keys():
-    for trial in res:
-        metrics[key].append(trial[key])
+# metrics = defaultdict(list)
+# for key in res[0].keys():
+#     for trial in res:
+#         metrics[key].append(trial[key])
 
-stability = np.mean(metrics['stability'], axis=0)
-delay_times = metrics['delay_times'][0]
-perturb_mags = params['perturbation_mag']
-fig_stability = plot_stability(stability, delay_times, perturb_mags)
+# stability = np.mean(metrics['stability'], axis=0)
+# delay_times = metrics['delay_times'][0]
+# perturb_mags = params['perturbation_mag']
+# fig_stability = plot_stability(stability, delay_times, perturb_mags)
