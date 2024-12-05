@@ -48,11 +48,11 @@ def train_test_random_net(params=None, plot_sim=False):
     metrics = dict()
 
     # instantiate model, loss function, and optimizer
-    n_inputs, n_hidden, n_outputs = 1, 300, 10
+    n_inputs, n_hidden, n_outputs = 1, 3, 1
     model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
                 n_outputs=n_outputs, echo_state=False)
     model.to(device)
-    # print(model)
+    print(model.W_hz.data)
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
@@ -115,6 +115,7 @@ def train_test_random_net(params=None, plot_sim=False):
         print(f"Warning: didn't converge (param_dist={param_dist})!!")
 
     fig_err.show()
+    print(model.W_hz.data)
 
     if plot_sim:
         plt.figure()

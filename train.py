@@ -64,8 +64,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
     if debug_backprop:
-        n_hidden = model.W_hh.data.shape[0]
-        W_hh_original = np.full([n_hidden, n_hidden], fill_value=np.nan)
+        W_hh_original = np.array(model.W_hh.data[model.W_hh_mask == 1])
         loss_original = np.nan
         grad_errs = list()
 
@@ -83,17 +82,18 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         loss = loss_fn(outputs[:, 0, :], targets[:, t_minus_1_idx, :])
         # backpropagation
         loss.backward()
-        optimizer.step()
+        # optimizer.step()
         if debug_backprop:
-            W_hh_updated = np.array(model.W_hh.data)
-            if np.all(np.isfinite(W_hh_original)):
+            
+            if np.isfinite(loss_original):
                 dloss = np.array(loss.detach()) - loss_original
-                dloss_dWhh_true = dloss / dWhh
-                mask = np.isfinite(dloss_dWhh_true)
-                dloss_dWhh_est = np.array(model.W_hh.grad)
-                grad_err = np.linalg.norm(dloss_dWhh_true[mask] - dloss_dWhh_est[mask])
+                dloss_dWhh_true = dloss
+                dloss_dWhh_est = np.array(model.W_hh.grad[model.W_hh_mask == 1]) * dWhh
+                grad_err = np.mean((dloss_dWhh_true - dloss_dWhh_est) ** 2)
+                x = 1 / 0
                 grad_errs.append(grad_err)
-
+            optimizer.step()
+            W_hh_updated = np.array(model.W_hh.data[model.W_hh_mask == 1])
             dWhh = W_hh_updated - W_hh_original
             W_hh_original = W_hh_updated.copy()
             loss_original = np.array(loss.detach())
@@ -123,9 +123,10 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
         outputs, h_t = model(inputs, h_0=h_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
 
-    h_t_batch = h_t.cpu().squeeze()
-    outputs_batch = outputs.cpu().squeeze()
-    targets_batch = targets.cpu().squeeze()
+    # select first batch if more than one exists
+    h_t_batch = h_t.cpu()[0]
+    outputs_batch = outputs.cpu()[0]
+    targets_batch = targets.cpu()[0]
 
     if plot:
         fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,

@@ -22,7 +22,7 @@ class RNN(nn.Module):
         self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
                                  requires_grad=True)
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
-                                 requires_grad=True)
+                                 requires_grad=False)
         self.W_zh = nn.Parameter(torch.empty(n_hidden, n_outputs),
                                  requires_grad=False)
 
