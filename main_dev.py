@@ -48,11 +48,10 @@ def train_test_random_net(params=None, plot_sim=False):
     metrics = dict()
 
     # instantiate model, loss function, and optimizer
-    n_inputs, n_hidden, n_outputs = 1, 3, 1
+    n_inputs, n_hidden, n_outputs = 1, 300, 1
     model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
                 n_outputs=n_outputs, echo_state=False)
     model.to(device)
-    print(model.W_hz.data)
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
@@ -91,6 +90,11 @@ def train_test_random_net(params=None, plot_sim=False):
     # plot model output before training
     _, _ = test(inputs, targets, times, model, loss_fn, h_0, plot=plot_sim)
 
+    # pre-train
+    # max_iter_pretrain = 10
+    # for iter_idx in range(max_iter_pretrain):
+    #     _ = pre_train(inputs, times, model, h_0)
+
     # train model weights
     max_iter = 20
     convergence_reached = False
@@ -104,8 +108,7 @@ def train_test_random_net(params=None, plot_sim=False):
                                             loss_fn, optimizer, h_0,
                                             debug_backprop=True)
         axes.plot(grad_errs)
-        # param_dist = pre_train(inputs, times, model, h_0)
-        # loss = param_dist
+
         loss_per_iter.append(loss)
         if param_dist < 2e-4:
             convergence_reached = True
@@ -115,7 +118,6 @@ def train_test_random_net(params=None, plot_sim=False):
         print(f"Warning: didn't converge (param_dist={param_dist})!!")
 
     fig_err.show()
-    print(model.W_hz.data)
 
     if plot_sim:
         plt.figure()
@@ -189,7 +191,7 @@ def train_test_random_net(params=None, plot_sim=False):
     outputs = set_optimimal_w_out(inputs, targets, times, model, loss_fn,
                                   h_0=h_0, plot=plot_sim)
     # baseline noise
-    outputs_batch = outputs.cpu().squeeze()
+    outputs_batch = outputs.cpu()[0]
     output_baseline_noise = outputs_batch[times <= 0, :].std()
     metrics['output_baseline_noise'] = float(output_baseline_noise)
     ####################################################
