@@ -50,12 +50,13 @@ def pre_train(inputs, times, model, h_0):
     return param_dist.numpy(force=True)
 
 
-def analytic_grad_W_hh(output, target, h_t, h_t_minus_1, model):
+def analytic_grad_W_hh(output, target, h_t, h_t_minus_1, model, dt):
     W_hz = model.W_hz.data
-    derr_out = 2 * (target - output)
+    tau = model.tau
+    derr_out = 2 * (output - target)
     dout_dh = W_hz.squeeze() * (1 / torch.cosh(h_t) ** 2)
     derr_dh = derr_out * dout_dh
-    dh_dWhh = torch.tanh(h_t_minus_1)
+    dh_dWhh = dt / tau * torch.tanh(h_t_minus_1)
     return torch.outer(derr_dh, dh_dWhh)
 
 
@@ -99,7 +100,8 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
                 target,
                 h_t_,
                 h_t_minus_1_,
-                model
+                model,
+                dt
             )[model.W_hh_mask == 1]
             dloss_dWhh_est = model.W_hh.grad[model.W_hh_mask == 1]
             grad_err = torch.mean((dloss_dWhh_analytic - dloss_dWhh_est) ** 2)
