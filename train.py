@@ -109,9 +109,10 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
         outputs, h_t = model(inputs, h_0=h_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
 
-    h_t_batch = h_t.cpu().squeeze()
-    outputs_batch = outputs.cpu().squeeze()
-    targets_batch = targets.cpu().squeeze()
+    # select first batch if more than one exists
+    h_t_batch = h_t.cpu()[0]
+    outputs_batch = outputs.cpu()[0]
+    targets_batch = targets.cpu()[0]
 
     if plot:
         fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
@@ -158,9 +159,11 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
         print(f"Min. loss: {loss.item():>7f}")
 
-    h_t_batch = h_t.cpu().squeeze()
-    outputs_batch = outputs.cpu().squeeze()
-    targets_batch = targets.cpu().squeeze()
+    # select first batch if more than one exists
+    h_t_batch = h_t.cpu()[0]
+    outputs_batch = outputs.cpu()[0]
+    targets_batch = targets.cpu()[0]
+
     if plot:
         fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
                         targets=targets_batch, times=times)

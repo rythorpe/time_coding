@@ -52,7 +52,6 @@ def train_test_random_net(params=None, plot_sim=False):
     model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
                 n_outputs=n_outputs, echo_state=False)
     model.to(device)
-    # print(model)
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
@@ -91,6 +90,11 @@ def train_test_random_net(params=None, plot_sim=False):
     # plot model output before training
     _, _ = test(inputs, targets, times, model, loss_fn, h_0, plot=plot_sim)
 
+    # pre-train
+    # max_iter_pretrain = 10
+    # for iter_idx in range(max_iter_pretrain):
+    #     _ = pre_train(inputs, times, model, h_0)
+
     # train model weights
     max_iter = 400
     convergence_reached = False
@@ -99,8 +103,6 @@ def train_test_random_net(params=None, plot_sim=False):
         print(f"Iteration {iter_idx + 1}")
         loss, param_dist = train(inputs, targets, times, model, loss_fn,
                                  optimizer, h_0)
-        # param_dist = pre_train(inputs, times, model, h_0)
-        # loss = param_dist
         loss_per_iter.append(loss)
         if param_dist < 2e-4:
             convergence_reached = True
