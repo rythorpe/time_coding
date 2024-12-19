@@ -51,10 +51,12 @@ def pre_train(inputs, times, model, h_0):
 
 
 def analytic_grad_W_hh(output, target, h_t, h_t_minus_1, model):
-    W_hz = model.W_hz.data.detach().numpy()
-    derr_out = 2 * (target.detach().numpy() - output.detach().numpy())
-    dout_dWhh = W_hz * (1 / np.cosh(h_t.detach().numpy()) ^ 2) * np.tanh(h_t_minus_1.detach().numpy())
-    return derr_out * dout_dWhh
+    W_hz = model.W_hz.data
+    derr_out = 2 * (target - output)
+    dout_dh = W_hz.squeeze() * (1 / torch.cosh(h_t) ** 2)
+    derr_dh = derr_out * dout_dh
+    dh_dWhh = torch.tanh(h_t_minus_1)
+    return torch.outer(derr_dh, dh_dWhh)
 
 
 def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
@@ -71,8 +73,6 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
     if debug_backprop:
-        W_hh_original = np.array(model.W_hh.data[model.W_hh_mask == 1])
-        loss_original = np.nan
         grad_errs = list()
 
     # now, train using FORCE
@@ -90,16 +90,25 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         # backpropagation
         loss.backward()
         if debug_backprop:
-            optimizer.step()
-            if np.isfinite(loss_original):
-                dloss_dWhh_analytic = analytic_grad_W_hh(outputs[0, :, 0], targets[0, :, 0], h_t[0, -1, :], h_0[0, :], model)[model.W_hh_mask == 1]
-                dloss_dWhh_est = np.array(model.W_hh.grad[model.W_hh_mask == 1])
-                grad_err = np.mean((dloss_dWhh_analytic - dloss_dWhh_est) ** 2)
-                grad_errs.append(grad_err)
-            W_hh_updated = np.array(model.W_hh.data[model.W_hh_mask == 1])
-            dWhh = W_hh_updated - W_hh_original
-            W_hh_original = W_hh_updated.copy()
-            loss_original = np.array(loss.detach())
+            output = outputs[0, 0, 0]
+            target = targets[0, t_minus_1_idx, 0]
+            h_t_ = h_t[0, -1, :]
+            h_t_minus_1_ = h_0[0, :]
+            dloss_dWhh_analytic = analytic_grad_W_hh(
+                output,
+                target,
+                h_t_,
+                h_t_minus_1_,
+                model
+            )[model.W_hh_mask == 1]
+            dloss_dWhh_est = model.W_hh.grad[model.W_hh_mask == 1]
+            grad_err = torch.mean((dloss_dWhh_analytic - dloss_dWhh_est) ** 2)
+            # if t_idx == 200:
+            #     plt.figure()
+            #     plt.plot(dloss_dWhh_analytic)
+            #     plt.plot(dloss_dWhh_est)
+            #     plt.show()
+            grad_errs.append(grad_err.detach().numpy(force=True))
         optimizer.step()
         optimizer.zero_grad()
         losses.append(loss.item())
