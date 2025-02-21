@@ -81,7 +81,7 @@ def plot_traj(h_units, outputs, targets, times):
         axes[1].plot(times, outputs[:, out_idx], c=color,
                      lw=2)
         axes[1].plot(times_after_zero, targets[time_mask, out_idx], c=color,
-                     lw=1, ls=':')
+                     lw=2, ls=':')
 
     axes[1].set_xticks(np.arange(0, 1.2, 0.2))
     axes[1].set_xlabel('time (s)')
