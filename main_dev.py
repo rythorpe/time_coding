@@ -29,7 +29,7 @@ np.random.seed(35107)
 
 # define parameter sweep
 # n_samp = 3
-n_nets_per_samp = 30
+n_nets_per_samp = 1
 # params = {'n_outputs': np.linspace(5, 25, n_samp),
 #           'targ_std': np.linspace(0.005, 0.025, n_samp)}
 # xx, yy = np.meshgrid(params['n_outputs'], params['targ_std'])
@@ -37,7 +37,7 @@ n_nets_per_samp = 30
 # # repeat samples to get multiple random nets per configuration
 # param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 # n_total_trials = param_vals.shape[0]
-params = {'perturbation_mag': np.array([0.0, 0.005, 0.015, 0.020, 0.025])}
+params = {'perturbation_mag': np.array([0.0])}
 
 
 def train_test_random_net(params=None, plot_sim=False):
@@ -96,7 +96,7 @@ def train_test_random_net(params=None, plot_sim=False):
     #     _ = pre_train(inputs, times, model, h_0)
 
     # train model weights
-    max_iter = 400
+    max_iter = 40
     convergence_reached = False
     loss_per_iter = list()
     for iter_idx in range(max_iter):
@@ -104,9 +104,9 @@ def train_test_random_net(params=None, plot_sim=False):
         loss, param_dist = train(inputs, targets, times, model, loss_fn,
                                  optimizer, h_0)
         loss_per_iter.append(loss)
-        if param_dist < 2e-4:
-            convergence_reached = True
-            break
+        # if param_dist < 2e-4:
+        #     convergence_reached = True
+        #     break
     # print(f"Trial {sample_idx} training complete!!")
     if not convergence_reached:
         print(f"Warning: didn't converge (param_dist={param_dist})!!")
@@ -191,22 +191,22 @@ def train_test_random_net(params=None, plot_sim=False):
 
 
 # run single trial
-# res = train_test_random_net(params, plot_sim=True)
+res = train_test_random_net(params, plot_sim=True)
 
 # run sweep sequentially
 # for param in param_vals:
 #     train_test_random_net(params)
 
 # run sweep in parallel
-res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
-                          for idx in range(n_nets_per_samp))
+# res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
+#                           for idx in range(n_nets_per_samp))
 
-metrics = defaultdict(list)
-for key in res[0].keys():
-    for trial in res:
-        metrics[key].append(trial[key])
+# metrics = defaultdict(list)
+# for key in res[0].keys():
+#     for trial in res:
+#         metrics[key].append(trial[key])
 
-stability = np.mean(metrics['stability'], axis=0)
-delay_times = metrics['delay_times'][0]
-perturb_mags = params['perturbation_mag']
-fig_stability = plot_stability(stability, delay_times, perturb_mags)
+# stability = np.mean(metrics['stability'], axis=0)
+# delay_times = metrics['delay_times'][0]
+# perturb_mags = params['perturbation_mag']
+# fig_stability = plot_stability(stability, delay_times, perturb_mags)
