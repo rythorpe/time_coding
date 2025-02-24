@@ -16,10 +16,11 @@ class RNN(nn.Module):
         self.tau = 0.01  # 10 ms
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
-        gain = 1.8
+        self.p_rel = 0.9
+        gain = 2.0
         prob_c = 0.3
 
-        self.p_rel = nn.Parameter(torch.empty(n_hidden), requires_grad=False)
+        # self.p_rel = nn.Parameter(torch.empty(n_hidden), requires_grad=False)
         self.tau_depr = nn.Parameter(torch.empty(n_hidden), requires_grad=False)
         self.W_ih = nn.Parameter(torch.empty(n_hidden, n_inputs),
                                  requires_grad=False)
@@ -32,8 +33,8 @@ class RNN(nn.Module):
         
         # initialize release probabilities
         # Bounds taken from Tsodyks & Markram PNAS 1997
-        torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.95)
-        torch.nn.init.uniform_(self.tau_depr, a=0.01, b=0.2)
+        # torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.95)
+        torch.nn.init.uniform_(self.tau_depr, a=0.1, b=0.2)
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)
