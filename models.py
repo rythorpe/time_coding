@@ -20,8 +20,10 @@ class RNN(nn.Module):
         gain = 2.0
         prob_c = 0.3
 
-        # self.p_rel = nn.Parameter(torch.empty(n_hidden), requires_grad=False)
-        self.tau_depr = nn.Parameter(torch.empty(n_hidden), requires_grad=False)
+        # self.p_rel = nn.Parameter(torch.empty(n_hidden),
+        #                           requires_grad=False)
+        self.tau_depr = nn.Parameter(torch.empty(n_hidden),
+                                     requires_grad=False)
         self.W_ih = nn.Parameter(torch.empty(n_hidden, n_inputs),
                                  requires_grad=False)
         self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
@@ -30,11 +32,11 @@ class RNN(nn.Module):
                                  requires_grad=True)
         self.W_zh = nn.Parameter(torch.empty(n_hidden, n_outputs),
                                  requires_grad=False)
-        
+
         # initialize release probabilities
         # Bounds taken from Tsodyks & Markram PNAS 1997
         # torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.95)
-        torch.nn.init.uniform_(self.tau_depr, a=0.1, b=0.2)
+        torch.nn.init.uniform_(self.tau_depr, a=0.15, b=0.25)
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)
@@ -74,6 +76,7 @@ class RNN(nn.Module):
         # assuming batches x time x n_inputs
         batch_size, seq_len, _ = x.size()
 
+        r = torch.zeros(batch_size, seq_len, self.n_hidden)
         u = torch.zeros(batch_size, seq_len, self.n_hidden)
         h = torch.zeros(batch_size, seq_len, self.n_hidden)
         z = torch.zeros(batch_size, seq_len, self.n_outputs)
@@ -83,6 +86,7 @@ class RNN(nn.Module):
         for batch_idx in range(batch_size):
             # initialize hidden and output states
             # each batch can theoretically have a different start point
+            r_t_minus_1 = torch.ones(self.n_hidden)
             u_t_minus_1 = torch.tensor(self.p_rel)
             h_t_minus_1 = h_0[batch_idx, :]
             h_transfer = torch.tanh(h_0[batch_idx, :])
@@ -91,22 +95,26 @@ class RNN(nn.Module):
             for t in range(seq_len):
                 self.noise.normal_(0, self.noise_std)
                 # pre-synaptic plasticity
-                dudt = ((self.p_rel - u_t_minus_1) / self.tau_depr
-                        - self.p_rel * u_t_minus_1 * h_transfer)
-                # dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                #         + self.p_rel * (1 - u_t_minus_1) * h_transfer)
+                drdt = ((1 - r_t_minus_1) / self.tau_depr
+                        - u_t_minus_1 * r_t_minus_1 * h_transfer)
+                r_t = r_t_minus_1 + drdt * dt
+                r[batch_idx, t, :] = r_t
+                dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
+                        + self.p_rel * (1 - u_t_minus_1) * h_transfer)
                 u_t = u_t_minus_1 + dudt * dt
                 u[batch_idx, t, :] = u_t
+                presyn_scaling = r_t_minus_1 * u_t_minus_1
                 # post-synaptic integration
                 dhdt = (-h_t_minus_1
                         # mask to enforces static, sparse recurrent connections
-                        + u_t_minus_1 * h_transfer @ (self.W_hh_mask * self.W_hh).T
+                        + (presyn_scaling * h_transfer) @ (self.W_hh_mask * self.W_hh).T
                         + x[batch_idx, t] @ self.W_ih.T
                         + z_t_minus_1 @ self.W_zh.T
                         + self.noise) / self.tau
                 h_t = h_t_minus_1 + dhdt * dt
                 h[batch_idx, t, :] = h_t
                 h_t_minus_1 = h_t
+                r_t_minus_1 = r_t
                 u_t_minus_1 = u_t
                 # compute h output here so that it can be passed to both
                 # z (output unit) and itself on the next time step
