@@ -17,8 +17,9 @@ class RNN(nn.Module):
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
         self.p_rel = 0.9
-        gain = 2.0
-        prob_c = 0.3
+        self.beta = 20 * self.p_rel
+        gain = 1.6
+        prob_c = 0.15
 
         # self.p_rel = nn.Parameter(torch.empty(n_hidden),
         #                           requires_grad=False)
@@ -100,7 +101,7 @@ class RNN(nn.Module):
                 r_t = r_t_minus_1 + drdt * dt
                 r[batch_idx, t, :] = r_t
                 dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                        + self.p_rel * (1 - u_t_minus_1) * h_transfer)
+                        + self.beta * (1 - u_t_minus_1) * h_transfer)
                 u_t = u_t_minus_1 + dudt * dt
                 u[batch_idx, t, :] = u_t
                 presyn_scaling = r_t_minus_1 * u_t_minus_1

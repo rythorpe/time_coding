@@ -110,12 +110,12 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
 
     # select first batch if more than one exists
-    h_t_batch = h_t.cpu()[0]
+    hidden_batch = torch.tanh(h_t).cpu()[0]
     outputs_batch = outputs.cpu()[0]
     targets_batch = targets.cpu()[0]
 
     if plot:
-        fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
+        fig = plot_traj(h_units=hidden_batch, outputs=outputs_batch,
                         targets=targets_batch, times=times)
         fig.show()
     try:
@@ -160,12 +160,12 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         print(f"Min. loss: {loss.item():>7f}")
 
     # select first batch if more than one exists
-    h_t_batch = h_t.cpu()[0]
+    hidden_batch = torch.tanh(h_t).cpu()[0]
     outputs_batch = outputs.cpu()[0]
     targets_batch = targets.cpu()[0]
 
     if plot:
-        fig = plot_traj(h_units=h_t_batch, outputs=outputs_batch,
+        fig = plot_traj(h_units=hidden_batch, outputs=outputs_batch,
                         targets=targets_batch, times=times)
         fig.show()
     return outputs

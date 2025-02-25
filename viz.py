@@ -74,18 +74,17 @@ def plot_traj(h_units, outputs, targets, times):
 
     # recurrent unit trajectories
     axes[0].plot(times, h_units[:, :n_hidden_plot], c='k')
-    axes[0].set_ylabel('recurrent\nunits')
+    axes[0].set_ylabel('firing rate (a.u.)')
 
     # outputs
     for out_idx, color in zip(range(n_outputs), colors):
-        axes[1].plot(times, outputs[:, out_idx], c=color,
-                     lw=2)
+        axes[1].plot(times, outputs[:, out_idx], c=color, lw=2)
         axes[1].plot(times_after_zero, targets[time_mask, out_idx], c=color,
                      lw=2, ls=':')
 
     axes[1].set_xticks(np.arange(0, 1.2, 0.2))
     axes[1].set_xlabel('time (s)')
-    axes[1].set_ylabel('output')
+    axes[1].set_ylabel('firing rate (a.u.)')
 
     return fig
 
