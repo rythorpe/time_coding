@@ -17,7 +17,7 @@ class RNN(nn.Module):
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
         self.p_rel = 0.9
-        self.beta = 20 * self.p_rel
+        self.beta = 1 * self.p_rel
         gain = 1.6
         prob_c = 0.15
 
@@ -37,7 +37,7 @@ class RNN(nn.Module):
         # initialize release probabilities
         # Bounds taken from Tsodyks & Markram PNAS 1997
         # torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.95)
-        torch.nn.init.uniform_(self.tau_depr, a=0.15, b=0.25)
+        torch.nn.init.uniform_(self.tau_depr, a=0.01, b=0.5)
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)
@@ -96,15 +96,18 @@ class RNN(nn.Module):
             for t in range(seq_len):
                 self.noise.normal_(0, self.noise_std)
                 # pre-synaptic plasticity
-                drdt = ((1 - r_t_minus_1) / self.tau_depr
-                        - u_t_minus_1 * r_t_minus_1 * h_transfer)
+                # drdt = ((1 - r_t_minus_1) / self.tau_depr
+                #         - u_t_minus_1 * r_t_minus_1 * h_transfer)
+                drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
+                        - self.beta * r_t_minus_1 * h_transfer)
                 r_t = r_t_minus_1 + drdt * dt
                 r[batch_idx, t, :] = r_t
                 dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
                         + self.beta * (1 - u_t_minus_1) * h_transfer)
                 u_t = u_t_minus_1 + dudt * dt
                 u[batch_idx, t, :] = u_t
-                presyn_scaling = r_t_minus_1 * u_t_minus_1
+                # presyn_scaling = r_t_minus_1 * u_t_minus_1
+                presyn_scaling = r_t_minus_1
                 # post-synaptic integration
                 dhdt = (-h_t_minus_1
                         # mask to enforces static, sparse recurrent connections
