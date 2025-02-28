@@ -68,7 +68,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
     #                                   requires_grad=False)
 
     # now, train using FORCE
-    step_size = 1
+    step_size = 2
     losses = list()
     t_0_idx = np.nonzero(times > 0)[0][0]
     for t_idx in np.arange(t_0_idx + step_size, n_times + step_size,
@@ -97,6 +97,31 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
                   / torch.linalg.norm(init_params))
 
     return np.mean(losses), param_dist
+
+
+def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0):
+    dt = times[1] - times[0]
+    n_times = len(times)
+    init_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+                             model.W_hz.data.flatten()))
+    # init_params = init_params.numpy(force=True)
+    model.train()
+
+    outputs, h_t = model(inputs, h_0=h_0, dt=dt)
+    loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
+    loss.backward()
+
+    optimizer.step()
+    optimizer.zero_grad()
+
+    updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+                                model.W_hz.data.flatten()))
+    # updated_params = updated_params.numpy(force=True)
+    # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
+    param_dist = (torch.linalg.norm(updated_params - init_params)
+                  / torch.linalg.norm(init_params))
+
+    return loss.item(), param_dist
 
 
 def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
