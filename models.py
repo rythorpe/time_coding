@@ -19,7 +19,7 @@ class RNN(nn.Module):
         self.p_rel = 0.9
         self.beta = 1 * self.p_rel
         gain = 1.6
-        prob_c = 0.15
+        prob_c = 0.20
 
         # self.p_rel = nn.Parameter(torch.empty(n_hidden),
         #                           requires_grad=False)
@@ -37,7 +37,7 @@ class RNN(nn.Module):
         # initialize release probabilities
         # Bounds taken from Tsodyks & Markram PNAS 1997
         # torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.95)
-        torch.nn.init.uniform_(self.tau_depr, a=0.01, b=0.5)
+        torch.nn.init.uniform_(self.tau_depr, a=0.01, b=0.2)
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)

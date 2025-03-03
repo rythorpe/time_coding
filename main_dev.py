@@ -14,7 +14,7 @@ from torch import nn
 
 from utils import gaussian, get_gaussian_targets, get_random_targets
 from models import RNN
-from train import test, pre_train, train, set_optimimal_w_out
+from train import test, pre_train, train, train_simple, set_optimimal_w_out
 from viz import plot_stability
 
 # set meta-parameters
