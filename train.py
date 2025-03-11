@@ -54,7 +54,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
           debug_backprop=False):
     dt = times[1] - times[0]
     n_times = len(times)
-    init_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+    init_params = torch.cat((model.W_hh_tuned[model.W_hh_mask[:, :model.n_hidden_tuned] == 1],
                              model.W_hz.data.flatten()))
     # init_params = init_params.numpy(force=True)
     model.train()
@@ -89,7 +89,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         optimizer.zero_grad()
         losses.append(loss.item())
 
-    updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
+    updated_params = torch.cat((model.W_hh_tuned[model.W_hh_mask[:, :model.n_hidden_tuned] == 1],
                                 model.W_hz.data.flatten()))
     # updated_params = updated_params.numpy(force=True)
     # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
@@ -102,8 +102,7 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
 def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0):
     dt = times[1] - times[0]
     n_times = len(times)
-    init_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
-                             model.W_hz.data.flatten()))
+    init_params = model.W_hz.data.flatten()
     # init_params = init_params.numpy(force=True)
     model.train()
 
@@ -114,8 +113,7 @@ def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0):
     optimizer.step()
     optimizer.zero_grad()
 
-    updated_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
-                                model.W_hz.data.flatten()))
+    updated_params = model.W_hz.data.flatten()
     # updated_params = updated_params.numpy(force=True)
     # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
     param_dist = (torch.linalg.norm(updated_params - init_params)

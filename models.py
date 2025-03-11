@@ -8,7 +8,7 @@ from torch import nn
 
 class RNN(nn.Module):
     def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
-                 echo_state=True):
+                 echo_state=False):
         super().__init__()
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
@@ -20,24 +20,27 @@ class RNN(nn.Module):
         self.beta = 1 * self.p_rel
         gain = 1.6
         prob_c = 0.20
+        # self.n_hidden_tuned = int(np.round(self.n_hidden / 15))
+        self.n_hidden_tuned = 10
 
-        # self.p_rel = nn.Parameter(torch.empty(n_hidden),
-        #                           requires_grad=False)
-        self.tau_depr = nn.Parameter(torch.empty(n_hidden),
-                                     requires_grad=False)
-        self.W_ih = nn.Parameter(torch.empty(n_hidden, n_inputs),
-                                 requires_grad=False)
-        self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
-                                 requires_grad=True)
+        # constant network parameters
+        # self.p_rel = torch.empty(n_hidden)
+        self.tau_depr = torch.empty(n_hidden)
+        self.W_ih = torch.empty(n_hidden, n_inputs)
+        self.W_hh_fixed = torch.empty(n_hidden, n_hidden - self.n_hidden_tuned)
+
+        # varied network parameters
+        self.W_hh_tuned = nn.Parameter(torch.empty(n_hidden, self.n_hidden_tuned),
+                                       requires_grad=True)
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
         self.W_zh = nn.Parameter(torch.empty(n_hidden, n_outputs),
-                                 requires_grad=False)
+                                 requires_grad=False)  # constant for now
 
         # initialize release probabilities
         # Bounds taken from Tsodyks & Markram PNAS 1997
         # torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.95)
-        torch.nn.init.uniform_(self.tau_depr, a=0.01, b=0.2)
+        torch.nn.init.uniform_(self.tau_depr, a=0.05, b=1.0)
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)
@@ -47,7 +50,8 @@ class RNN(nn.Module):
         w_hidden_std = gain / np.sqrt(prob_c * n_hidden)
         # torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
         #                       std=w_hidden_std)
-        torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
+        torch.nn.init.normal_(self.W_hh_fixed, mean=0.0, std=w_hidden_std)
+        torch.nn.init.normal_(self.W_hh_tuned, mean=0.0, std=w_hidden_std)
         # create mask for non-zero connections; tuning weights of
         # zeroed connections won't effect model dynamics
         n_conns_possible = n_hidden ** 2
@@ -111,7 +115,8 @@ class RNN(nn.Module):
                 # post-synaptic integration
                 dhdt = (-h_t_minus_1
                         # mask to enforces static, sparse recurrent connections
-                        + (presyn_scaling * h_transfer) @ (self.W_hh_mask * self.W_hh).T
+                        + (presyn_scaling * h_transfer)
+                        @ (self.W_hh_mask * torch.cat((self.W_hh_tuned, self.W_hh_fixed), 1)).T
                         + x[batch_idx, t] @ self.W_ih.T
                         + z_t_minus_1 @ self.W_zh.T
                         + self.noise) / self.tau
