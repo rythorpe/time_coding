@@ -56,7 +56,7 @@ def plot_inputs_outputs(inputs, outputs, times, rec_traj=None, targets=None):
     return fig
 
 
-def plot_traj(h_units, outputs, targets, times):
+def plot_state_traj(h_units, outputs, targets, times):
     # NB: assumes a single batch/trial
     n_times, n_hidden = h_units.shape
     n_outputs = outputs.shape[1]
@@ -74,7 +74,7 @@ def plot_traj(h_units, outputs, targets, times):
 
     # recurrent unit trajectories
     axes[0].plot(times, h_units[:, :n_hidden_plot], c='k')
-    axes[0].set_ylabel('firing rate (a.u.)')
+    axes[0].set_ylabel('normalized\nfiring rate (a.u.)')
 
     # outputs
     for out_idx, color in zip(range(n_outputs), colors):
@@ -84,7 +84,7 @@ def plot_traj(h_units, outputs, targets, times):
 
     axes[1].set_xticks(np.arange(0, 1.2, 0.2))
     axes[1].set_xlabel('time (s)')
-    axes[1].set_ylabel('firing rate (a.u.)')
+    axes[1].set_ylabel('normalized\nfiring rate (a.u.)')
 
     return fig
 

@@ -68,8 +68,8 @@ def train_test_random_net(params=None, plot_sim=False):
     inputs = torch.zeros((n_batches, n_times, n_inputs))
 
     # define output targets
-    # set std s.t. amplitude decays to 0.5 at intersection with next target
-    targ_std = np.sqrt(- 0.05 ** 2 / (2 * np.log(0.5)))  # alt: 30 ms
+    # set std s.t. amplitude decays to 1/e at intersection with next target
+    targ_std = 0.05 / np.sqrt(2)  # ~35 ms
     targets, delay_times_ = get_gaussian_targets(n_batches, n_outputs, times,
                                                  targ_std)
     # targets, opt_basis = get_random_targets(RNN, inputs,

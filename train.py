@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 import torch
 
-from viz import plot_traj
+from viz import plot_state_traj
 
 
 def step_sangers_rule(W, W_mask, inputs, outputs, lr=1e-5):
@@ -26,7 +26,7 @@ def pre_train(inputs, times, model, h_0):
 
     # run model without storing gradients until t=0
     with torch.no_grad():
-        outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
+        outputs, h_t, u_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
         # now, train using at each time point using Sanger's Rule
         step_size = 1
@@ -36,8 +36,8 @@ def pre_train(inputs, times, model, h_0):
             # compute prediction error
             t_minus_1_idx = t_idx - step_size
             h_0 = h_t[:, -1, :].detach()
-            outputs, h_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0,
-                                 dt=dt)
+            outputs, h_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :],
+                                      h_0=h_0, dt=dt)
             model.W_hh.data += step_sangers_rule(model.W_hh.data,
                                                  model.W_hh_mask,
                                                  h_0[0], h_t[0, 0])
@@ -61,14 +61,14 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
 
     # run model without storing gradients until t=0
     with torch.no_grad():
-        outputs, h_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
+        outputs, h_t, u_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
 
     # if debug_backprop:
     #     dWhh_dloss_true = torch.empty(n_hidden, n_hidden,
     #                                   requires_grad=False)
 
     # now, train using FORCE
-    step_size = 2
+    step_size = 5
     losses = list()
     t_0_idx = np.nonzero(times > 0)[0][0]
     for t_idx in np.arange(t_0_idx + step_size, n_times + step_size,
@@ -76,7 +76,8 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
         # compute prediction error
         t_minus_1_idx = t_idx - step_size
         h_0 = h_t[:, -1, :].detach()
-        outputs, h_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0, dt=dt)
+        outputs, h_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0,
+                                  dt=dt)
         # loss at t - delta_t
         loss = loss_fn(outputs[:, 0, :], targets[:, t_minus_1_idx, :])
         # backpropagation
@@ -106,7 +107,7 @@ def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0):
     # init_params = init_params.numpy(force=True)
     model.train()
 
-    outputs, h_t = model(inputs, h_0=h_0, dt=dt)
+    outputs, h_t, u_t = model(inputs, h_0=h_0, dt=dt)
     loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
     loss.backward()
 
@@ -129,7 +130,7 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
     with torch.no_grad():
 
         # Compute prediction error
-        outputs, h_t = model(inputs, h_0=h_0, dt=dt)
+        outputs, h_t, u_t = model(inputs, h_0=h_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
 
     # select first batch if more than one exists
@@ -138,7 +139,7 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
     targets_batch = targets.cpu()[0]
 
     if plot:
-        fig = plot_traj(h_units=hidden_batch, outputs=outputs_batch,
+        fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
                         targets=targets_batch, times=times)
         fig.show()
     try:
@@ -156,7 +157,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
     with torch.no_grad():
 
         # Compute prediction error
-        outputs, h_t = model(inputs, h_0=h_0, dt=dt)
+        outputs, h_t, u_t = model(inputs, h_0=h_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
         transfer_func = torch.nn.Tanh()
         h_transfer = transfer_func(h_t)
@@ -174,7 +175,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         model.W_hz[:] = W_hz_.T
         # h_argmax = torch.argmax(model.W_hz.abs(), dim=1)
 
-        outputs, h_t = model(inputs, h_0=h_0, dt=dt)
+        outputs, h_t, u_t = model(inputs, h_0=h_0, dt=dt)
         # plt.figure()
         # plt.plot(times[times > 0], h_transfer[:, h_argmax])
         # plt.ylabel('f(X)')
@@ -188,7 +189,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
     targets_batch = targets.cpu()[0]
 
     if plot:
-        fig = plot_traj(h_units=hidden_batch, outputs=outputs_batch,
+        fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
                         targets=targets_batch, times=times)
         fig.show()
     return outputs

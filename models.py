@@ -16,10 +16,10 @@ class RNN(nn.Module):
         self.tau = 0.01  # 10 ms
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
-        self.p_rel = 0.9
-        self.beta = 1 * self.p_rel
+        self.p_rel = 1.0
+        self.beta = 1.5 * self.p_rel
         gain = 1.6
-        prob_c = 0.20
+        prob_c = 0.10
         # self.n_hidden_tuned = int(np.round(self.n_hidden / 15))
         self.n_hidden_tuned = 10
 
@@ -91,8 +91,8 @@ class RNN(nn.Module):
         for batch_idx in range(batch_size):
             # initialize hidden and output states
             # each batch can theoretically have a different start point
-            r_t_minus_1 = torch.ones(self.n_hidden)
-            u_t_minus_1 = torch.tensor(self.p_rel)
+            r_t_minus_1 = torch.ones(self.n_hidden) * self.p_rel
+            u_t_minus_1 = torch.ones(self.n_hidden) * self.p_rel
             h_t_minus_1 = h_0[batch_idx, :]
             h_transfer = torch.tanh(h_0[batch_idx, :])
             z_t_minus_1 = h_transfer @ self.W_hz.T
@@ -131,4 +131,4 @@ class RNN(nn.Module):
                 z_t = h_transfer @ self.W_hz.T
                 z[batch_idx, t, :] = z_t
                 z_t_minus_1 = z_t
-        return z, h
+        return z, h, r
