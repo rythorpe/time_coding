@@ -85,8 +85,14 @@ class RNN(nn.Module):
             # each batch can theoretically have distinct initial conditions,
             # injected noise, or inputs
             # r_t_minus_1 = torch.ones(self.n_hidden) * (0.5 / (1 + self.beta * 0.5 * self.tau_depr))
-            r_t_minus_1 = r_0[batch_idx, :]
-            u_t_minus_1 = u_0[batch_idx, :]
+            if r_0 is None:
+                r_t_minus_1 = torch.ones(self.n_hidden)
+            else:
+                r_t_minus_1 = r_0[batch_idx, :]
+            if u_0 is None:
+                r_t_minus_1 = torch.ones(self.n_hidden)
+            else:
+                u_t_minus_1 = u_0[batch_idx, :]
             h_t_minus_1 = h_0[batch_idx, :]
             h_transfer = torch.tanh(h_0[batch_idx, :])
             # begin integration over time
@@ -95,25 +101,27 @@ class RNN(nn.Module):
                 # dhdt = torch.zeros(self.n_hidden)
                 self.noise.normal_(0, self.noise_std)
 
-                # pre-synaptic plasticity
-                # drdt = ((1 - r_t_minus_1) / self.tau_depr
-                #         - self.beta * u_t_minus_1 * r_t_minus_1 * (1 + h_transfer) / 2)
-                drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
-                        - self.beta * r_t_minus_1 * (1 + h_transfer) / 2)
+                # pre-syn STP: depletion of resources (depression)
                 if r_0 is None:
                     # silence the effect of syn depression
                     r_t = torch.ones(self.n_hidden)
                 else:
+                    # drdt = ((1 - r_t_minus_1) / self.tau_depr
+                    #         - self.beta * u_t_minus_1 * r_t_minus_1 *
+                    #         (1 + h_transfer) / 2)
+                    drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
+                            - self.beta * r_t_minus_1 * (1 + h_transfer) / 2)
                     r_t = r_t_minus_1 + drdt * dt
                 r_t_all[batch_idx, t_idx, :] = r_t.clone()
 
-                dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                        + self.beta * (1 - u_t_minus_1) *
-                        (1 + h_transfer) / 2)
+                # pre-syn STP: augmentation of utilization (facilitation)
                 if u_0 is None:
                     # silence the effect of syn facilitation
                     u_t = torch.ones(self.n_hidden)
                 else:
+                    dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
+                            + self.beta * (1 - u_t_minus_1) *
+                            (1 + h_transfer) / 2)
                     u_t = u_t_minus_1 + dudt * dt
                 u_t_all[batch_idx, t_idx, :] = u_t.clone()
 
