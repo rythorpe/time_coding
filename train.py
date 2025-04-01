@@ -17,7 +17,7 @@ def step_sangers_rule(W, W_mask, inputs, outputs, lr=1e-5):
     return dW
 
 
-def pre_train(inputs, times, model, h_0):
+def pre_train(inputs, times, model, h_0, r_0, u_0):
     dt = times[1] - times[0]
     n_times = len(times)
     init_params = torch.cat((model.W_hh[model.W_hh_mask == 1],
@@ -26,7 +26,8 @@ def pre_train(inputs, times, model, h_0):
 
     # run model without storing gradients until t=0
     with torch.no_grad():
-        outputs, h_t, u_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
+        outputs, h_t, r_t, u_t = model(inputs[:, times <= 0, :],
+                                       h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
 
         # now, train using at each time point using Sanger's Rule
         step_size = 1
@@ -36,8 +37,8 @@ def pre_train(inputs, times, model, h_0):
             # compute prediction error
             t_minus_1_idx = t_idx - step_size
             h_0 = h_t[:, -1, :].detach()
-            outputs, h_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :],
-                                      h_0=h_0, dt=dt)
+            outputs, h_t, r_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :],
+                                           h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
             model.W_hh.data += step_sangers_rule(model.W_hh.data,
                                                  model.W_hh_mask,
                                                  h_0[0], h_t[0, 0])
@@ -50,48 +51,56 @@ def pre_train(inputs, times, model, h_0):
     return param_dist.numpy(force=True)
 
 
-def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
-          debug_backprop=False):
+def train(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0, u_0,
+          presyn_idx=0, debug_backprop=False):
     dt = times[1] - times[0]
     n_times = len(times)
-    init_params = torch.cat((model.W_hh_tuned[model.W_hh_mask[:, :model.n_hidden_tuned] == 1],
-                             model.W_hz.data.flatten()))
+    init_params = model.W_hz.data.flatten()
     # init_params = init_params.numpy(force=True)
     model.train()
 
     # run model without storing gradients until t=0
     with torch.no_grad():
-        outputs, h_t, u_t = model(inputs[:, times <= 0, :], h_0=h_0, dt=dt)
+        outputs, h_t, r_t, u_t = model(inputs[:, times <= 0, :],
+                                       h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
 
     # if debug_backprop:
     #     dWhh_dloss_true = torch.empty(n_hidden, n_hidden,
     #                                   requires_grad=False)
 
     # now, train using FORCE
-    step_size = 5
+    step_size = 2
     losses = list()
     t_0_idx = np.nonzero(times > 0)[0][0]
-    for t_idx in np.arange(t_0_idx + step_size, n_times + step_size,
-                           step_size):
+    for t_idx in range(t_0_idx + step_size, n_times, step_size):
         # compute prediction error
         t_minus_1_idx = t_idx - step_size
         h_0 = h_t[:, -1, :].detach()
-        outputs, h_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :], h_0=h_0,
-                                  dt=dt)
+        r_0 = r_t[:, -1, :].detach()
+        u_0 = u_t[:, -1, :].detach()
+        outputs, h_t, r_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :],
+                                       h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+
         # loss at t - delta_t
-        loss = loss_fn(outputs[:, 0, :], targets[:, t_minus_1_idx, :])
+        loss = loss_fn(outputs[:, -1, :], targets[:, t_idx, :])
         # backpropagation
         loss.backward()
+
+        # print(model.presyn_scaling.grad)
 
         # if debug_backprop:
         #     dWhh_dloss_true = model.W_hh[:, :].copy().flatten()
 
         optimizer.step()
         optimizer.zero_grad()
+
+        # reset presyn_scaling vector
+        model.W_hh *= model.presyn_scaling.detach()
+        torch.nn.init.ones_(model.presyn_scaling)
+
         losses.append(loss.item())
 
-    updated_params = torch.cat((model.W_hh_tuned[model.W_hh_mask[:, :model.n_hidden_tuned] == 1],
-                                model.W_hz.data.flatten()))
+    updated_params = model.W_hz.data.flatten()
     # updated_params = updated_params.numpy(force=True)
     # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
     param_dist = (torch.linalg.norm(updated_params - init_params)
@@ -100,14 +109,15 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0,
     return np.mean(losses), param_dist
 
 
-def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0):
+def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0,
+                 u_0):
     dt = times[1] - times[0]
     n_times = len(times)
     init_params = model.W_hz.data.flatten()
     # init_params = init_params.numpy(force=True)
     model.train()
 
-    outputs, h_t, u_t = model(inputs, h_0=h_0, dt=dt)
+    outputs, h_t, r_t, u_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
     loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
     loss.backward()
 
@@ -123,14 +133,14 @@ def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0):
     return loss.item(), param_dist
 
 
-def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
+def test(inputs, targets, times, model, loss_fn, h_0, r_0, u_0, plot=True):
     dt = times[1] - times[0]
     model.eval()
 
     with torch.no_grad():
 
         # Compute prediction error
-        outputs, h_t, u_t = model(inputs, h_0=h_0, dt=dt)
+        outputs, h_t, r_t, u_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
 
     # select first batch if more than one exists
@@ -140,7 +150,7 @@ def test(inputs, targets, times, model, loss_fn, h_0, plot=True):
 
     if plot:
         fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
-                        targets=targets_batch, times=times)
+                              targets=targets_batch, times=times)
         fig.show()
     try:
         print(f"Test loss: {loss.item():>7f}")
