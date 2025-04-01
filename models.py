@@ -31,7 +31,7 @@ class RNN(nn.Module):
 
         # varied network parameters
         self.presyn_scaling = nn.Parameter(torch.ones(n_hidden),
-                                           requires_grad=True)
+                                           requires_grad=False)
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
         # self.W_hz = torch.empty(n_outputs, n_hidden)
@@ -69,7 +69,7 @@ class RNN(nn.Module):
         # self.register_buffer('h_0', torch.zeros(self.n_hidden))
         self.register_buffer('noise', torch.zeros(self.n_hidden))
 
-    def forward(self, x, h_0, r_0, u_0, dt=0.001):
+    def forward(self, x, h_0, r_0=None, u_0=None, dt=0.001):
         # assuming batches x time x n_inputs
         batch_size, seq_len, _ = x.size()
 
@@ -100,14 +100,21 @@ class RNN(nn.Module):
                 #         - self.beta * u_t_minus_1 * r_t_minus_1 * (1 + h_transfer) / 2)
                 drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
                         - self.beta * r_t_minus_1 * (1 + h_transfer) / 2)
-                r_t = r_t_minus_1 + drdt * dt
+                if r_0 is None:
+                    # silence the effect of syn depression
+                    r_t = torch.ones(self.n_hidden)
+                else:
+                    r_t = r_t_minus_1 + drdt * dt
                 r_t_all[batch_idx, t_idx, :] = r_t.clone()
 
-                # dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                #         + self.beta * (1 - u_t_minus_1) *
-                #         (1 + h_transfer) / 2)
-                # u_t = u_t_minus_1 + dudt * dt
-                u_t = torch.ones(self.n_hidden)
+                dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
+                        + self.beta * (1 - u_t_minus_1) *
+                        (1 + h_transfer) / 2)
+                if u_0 is None:
+                    # silence the effect of syn facilitation
+                    u_t = torch.ones(self.n_hidden)
+                else:
+                    u_t = u_t_minus_1 + dudt * dt
                 u_t_all[batch_idx, t_idx, :] = u_t.clone()
 
                 # calculate total transfer weight
