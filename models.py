@@ -126,7 +126,7 @@ class RNN(nn.Module):
                 u_t_all[batch_idx, t_idx, :] = u_t.clone()
 
                 # calculate total transfer weight
-                effective_weight = (r_t_minus_1 *
+                effective_weight = (r_t_minus_1 * u_t_minus_1 *
                                     self.presyn_scaling *
                                     self.W_hh * self.W_hh_mask)
 
