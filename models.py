@@ -90,7 +90,7 @@ class RNN(nn.Module):
             else:
                 r_t_minus_1 = r_0[batch_idx, :]
             if u_0 is None:
-                r_t_minus_1 = torch.ones(self.n_hidden)
+                u_t_minus_1 = torch.ones(self.n_hidden)
             else:
                 u_t_minus_1 = u_0[batch_idx, :]
             h_t_minus_1 = h_0[batch_idx, :]
