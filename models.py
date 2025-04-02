@@ -31,7 +31,7 @@ class RNN(nn.Module):
 
         # varied network parameters
         self.presyn_scaling = nn.Parameter(torch.ones(n_hidden),
-                                           requires_grad=False)
+                                           requires_grad=True)
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
         # self.W_hz = torch.empty(n_outputs, n_hidden)
