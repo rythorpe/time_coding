@@ -75,9 +75,12 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0, u_0,
     for t_idx in range(t_0_idx + step_size, n_times, step_size):
         # compute prediction error
         t_minus_1_idx = t_idx - step_size
+        # set initial states to the last time point of the prior forward pass
         h_0 = h_t[:, -1, :].detach()
-        r_0 = r_t[:, -1, :].detach()
-        u_0 = u_t[:, -1, :].detach()
+        if r_0 is not None:
+            r_0 = r_t[:, -1, :].detach()
+        if u_0 is not None:
+            u_0 = u_t[:, -1, :].detach()
         outputs, h_t, r_t, u_t = model(inputs[:, t_minus_1_idx:t_idx, :],
                                        h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
 
