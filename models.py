@@ -18,9 +18,9 @@ class RNN(nn.Module):
         self.tau_facil = 1.5  # 1.5 s
         # self.p_rel = 1.0
         self.beta = 10.0
+        self.effective_gain = 1.6
         stp_gain_adjustment = 1 / (0.5 / (1 + self.beta * 0.5 * self.tau_depr))
-        gain = 1.6 * stp_gain_adjustment
-        print(f'adjusted gain: {gain}')
+        self.gain = self.effective_gain * stp_gain_adjustment
         prob_c = 0.10
 
         # constant network parameters
@@ -46,7 +46,7 @@ class RNN(nn.Module):
         torch.nn.init.normal_(self.W_ih, mean=0.0, std=w_input_std)
 
         # initialize hidden weights
-        w_hidden_std = gain / np.sqrt(prob_c * n_hidden)
+        w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
         # torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
         #                       std=w_hidden_std)
         torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
@@ -128,7 +128,7 @@ class RNN(nn.Module):
                 # calculate total transfer weight
                 effective_weight = (r_t_minus_1 * u_t_minus_1 *
                                     self.presyn_scaling *
-                                    self.W_hh * self.W_hh_mask)
+                                    self.gain * self.W_hh * self.W_hh_mask)
 
                 # post-synaptic integration
                 dhdt = (-h_t_minus_1 +
