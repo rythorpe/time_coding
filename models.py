@@ -16,7 +16,6 @@ class RNN(nn.Module):
         self.tau = 0.01  # 10 ms
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
-        # self.p_rel = 1.0
         self.beta = 10.0
         self.effective_gain = 1.6
         stp_gain_adjustment = 1 / (0.5 / (1 + self.beta * 0.5 * self.tau_depr))
@@ -34,12 +33,10 @@ class RNN(nn.Module):
                                            requires_grad=True)
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
-        # self.W_hz = torch.empty(n_outputs, n_hidden)
 
         # initialize release probabilities
-        # Bounds taken from Tsodyks & Markram PNAS 1997
+        # bounds taken from Tsodyks & Markram PNAS 1997
         torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.90)
-        # torch.nn.init.uniform_(self.tau_depr, a=0.05, b=1.0)
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)
@@ -47,8 +44,6 @@ class RNN(nn.Module):
 
         # initialize hidden weights
         w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
-        # torch.nn.init.sparse_(self.W_hh, sparsity=(1 - prob_c),
-        #                       std=w_hidden_std)
         torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
         # create mask for non-zero connections; tuning weights of
         # zeroed connections won't effect model dynamics
@@ -66,7 +61,6 @@ class RNN(nn.Module):
 
         # create registered buffers (i.e., fancy attributes that need to live
         # on the same device as self
-        # self.register_buffer('h_0', torch.zeros(self.n_hidden))
         self.register_buffer('noise', torch.zeros(self.n_hidden))
 
     def forward(self, x, h_0, r_0=None, u_0=None, dt=0.001):
