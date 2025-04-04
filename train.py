@@ -1,10 +1,11 @@
-"""Optimization functions for ANN models."""
+"""Training and test functions for RNN model."""
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 import torch
 
+from utils import est_dimensionality
 from viz import plot_state_traj
 
 
@@ -136,30 +137,37 @@ def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0,
     return loss.item(), param_dist
 
 
-def test(inputs, targets, times, model, loss_fn, h_0, r_0, u_0, plot=True):
+def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
+                       plot=True):
     dt = times[1] - times[0]
     model.eval()
 
     with torch.no_grad():
-
-        # Compute prediction error
+        # simulate and calculate total output error
         outputs, h_t, r_t, u_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
         loss = loss_fn(outputs[:, times > 0, :], targets[:, times > 0, :])
+    
+    try:
+        print(f"Test loss: {loss.item():>7f}")
+    except RuntimeError:
+        Warning("Test loss isn't a scalar!")
 
     # select first batch if more than one exists
     hidden_batch = torch.tanh(h_t).cpu()[0]
     outputs_batch = outputs.cpu()[0]
     targets_batch = targets.cpu()[0]
 
+    # visualize network's response
     if plot:
         fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
                               targets=targets_batch, times=times)
         fig.show()
-    try:
-        print(f"Test loss: {loss.item():>7f}")
-    except RuntimeError:
-        Warning("Test loss isn't a scalar!")
-    return h_t, loss
+
+    # calculate metrics-of-interest
+    n_dim = est_dimensionality(hidden_batch)
+    stats = dict(loss=loss, dimensionality=n_dim)
+    
+    return torch.tanh(h_t).cpu(), outputs.cpu(), stats
 
 
 def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,

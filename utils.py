@@ -24,7 +24,7 @@ def gaussian(x, center, width):
     return np.exp(-(x - center) ** 2 / (2 * width ** 2))
 
 
-def compute_optimal_basis(column_vars, n_basis_funcs=10):
+def est_optimal_basis(column_vars, n_basis_funcs=10):
     # each column is a variable / channel
     # each row is an observation / sample
     cov = np.cov(column_vars, rowvar=False)
@@ -33,6 +33,16 @@ def compute_optimal_basis(column_vars, n_basis_funcs=10):
     eigvals, eigvecs = eigvals[sort_idxs], eigvecs[:, sort_idxs]
     # optimal basis is the reduced PC embedding: time x PC
     return column_vars @ eigvecs[:, :n_basis_funcs], eigvals
+
+
+def est_dimensionality(column_vars):
+    # each column is a variable / channel
+    # each row is an observation / sample
+    cov = np.cov(column_vars, rowvar=False)
+    eigvals, eigvecs = scipy.linalg.eig(cov)
+    eigvals /= np.sum(eigvals)
+    n_dim = 1 / np.sum(eigvals ** 2)
+    return n_dim
 
 
 def get_gaussian_targets(n_batches, n_outputs, times, targ_std):
@@ -71,7 +81,7 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
 
     # 1st (and only) batch, 1st third of recurrent trajectories
     h_transfer_subset = np.array(h_transfer[0, :, :n_hidden // 3])
-    opt_basis, eigvals = compute_optimal_basis(h_transfer_subset,
+    opt_basis, eigvals = est_optimal_basis(h_transfer_subset,
                                                n_basis_funcs=n_opt_basis)
 
     if plot:
