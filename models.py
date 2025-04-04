@@ -149,4 +149,4 @@ class RNN(nn.Module):
                 u_t_minus_1 = u_t
                 h_t_minus_1 = h_t
 
-        return z_t_all, h_t_all, r_t_all, u_t_all
+        return h_t_all, r_t_all, u_t_all, z_t_all
