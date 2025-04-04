@@ -6,6 +6,12 @@ import torch
 from torch import nn
 
 
+def get_jacobian(h_t_minus_1):
+    """Calculate Jacobian of hidden activity at the present time step."""
+    J
+    return J
+
+
 class RNN(nn.Module):
     def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
                  echo_state=False):
@@ -63,7 +69,8 @@ class RNN(nn.Module):
         # on the same device as self
         self.register_buffer('noise', torch.zeros(self.n_hidden))
 
-    def forward(self, x, h_0, r_0=None, u_0=None, dt=0.001):
+    def forward(self, x, h_0, r_0=None, u_0=None, dt=0.001,
+                return_dhdh=False):
         # assuming batches x time x n_inputs
         batch_size, seq_len, _ = x.size()
 
@@ -72,6 +79,8 @@ class RNN(nn.Module):
         u_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         h_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         z_t_all = torch.zeros(batch_size, seq_len, self.n_outputs)
+        # for calculation of long-term Jacobian across total sim time
+        dhdhtminus1_all = torch.zeros(batch_size, seq_len, self.n_hidden)
 
         # NB: doesn't work on CUDA; due to FORCE training, h_0 is updated
         # regularly in time and therefore lives on the CPU
@@ -89,6 +98,7 @@ class RNN(nn.Module):
                 u_t_minus_1 = u_0[batch_idx, :]
             h_t_minus_1 = h_0[batch_idx, :]
             h_transfer = torch.tanh(h_0[batch_idx, :])
+            dhdt_minus_1 = torch.full((self.n_hidden,), fill_value=torch.nan)
             # begin integration over time
             for t_idx in range(0, seq_len):
                 # init empty vector for current time step
@@ -129,6 +139,7 @@ class RNN(nn.Module):
                         x[batch_idx, t_idx, :] @ self.W_ih.T +
                         h_transfer @ effective_weight.T +
                         self.noise) / self.tau
+                dhdhtminus1_all[batch_idx, t_idx, :] = dhdt / dhdt_minus_1
                 h_t = h_t_minus_1 + dhdt * dt
                 h_t_all[batch_idx, t_idx, :] = h_t.clone()
 
@@ -142,5 +153,9 @@ class RNN(nn.Module):
                 r_t_minus_1 = r_t
                 u_t_minus_1 = u_t
                 h_t_minus_1 = h_t
+                dhdt_minus_1 = dhdt
 
-        return h_t_all, r_t_all, u_t_all, z_t_all
+        if return_dhdh is True:
+            return h_t_all, r_t_all, u_t_all, z_t_all, dhdhtminus1_all
+        else:
+            return h_t_all, r_t_all, u_t_all, z_t_all

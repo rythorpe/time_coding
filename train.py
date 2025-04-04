@@ -52,8 +52,8 @@ def pre_train(inputs, times, model, h_0, r_0, u_0):
     return param_dist.numpy(force=True)
 
 
-def train(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0, u_0,
-          presyn_idx=0, debug_backprop=False):
+def train_force(inputs, targets, times, model, loss_fn, optimizer,
+                h_0, r_0, u_0, presyn_idx=0, debug_backprop=False):
     dt = times[1] - times[0]
     n_times = len(times)
     init_params = model.W_hz.data.flatten()
@@ -113,8 +113,8 @@ def train(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0, u_0,
     return np.mean(losses), param_dist
 
 
-def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0,
-                 u_0):
+def train_output_only(inputs, targets, times, model, loss_fn, optimizer,
+                      h_0, r_0, u_0):
     dt = times[1] - times[0]
     n_times = len(times)
     init_params = model.W_hz.data.flatten()
@@ -135,39 +135,6 @@ def train_simple(inputs, targets, times, model, loss_fn, optimizer, h_0, r_0,
                   / torch.linalg.norm(init_params))
 
     return loss.item(), param_dist
-
-
-def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       plot=True):
-    dt = times[1] - times[0]
-    model.eval()
-
-    with torch.no_grad():
-        # simulate and calculate total output error
-        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
-        loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-    
-    try:
-        print(f"Test loss: {loss.item():>7f}")
-    except RuntimeError:
-        Warning("Test loss isn't a scalar!")
-
-    # select first batch if more than one exists
-    hidden_batch = torch.tanh(h_t).cpu()[0]
-    outputs_batch = z_t.cpu()[0]
-    targets_batch = targets.cpu()[0]
-
-    # visualize network's response
-    if plot:
-        fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
-                              targets=targets_batch, times=times)
-        fig.show()
-
-    # calculate metrics-of-interest
-    n_dim = est_dimensionality(hidden_batch)
-    stats = dict(loss=loss, dimensionality=n_dim)
-    
-    return torch.tanh(h_t).cpu(), z_t.cpu(), stats
 
 
 def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
@@ -211,3 +178,36 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
                               targets=targets_batch, times=times)
         fig.show()
     return z_t.cpu()
+
+
+def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
+                       plot=True):
+    dt = times[1] - times[0]
+    model.eval()
+
+    with torch.no_grad():
+        # simulate and calculate total output error
+        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+        loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
+    
+    try:
+        print(f"Test loss: {loss.item():>7f}")
+    except RuntimeError:
+        Warning("Test loss isn't a scalar!")
+
+    # select first batch if more than one exists
+    hidden_batch = torch.tanh(h_t).cpu()[0]
+    outputs_batch = z_t.cpu()[0]
+    targets_batch = targets.cpu()[0]
+
+    # visualize network's response
+    if plot:
+        fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
+                              targets=targets_batch, times=times)
+        fig.show()
+
+    # calculate metrics-of-interest
+    n_dim = est_dimensionality(hidden_batch)
+    stats = dict(loss=loss, dimensionality=n_dim)
+    
+    return torch.tanh(h_t).cpu(), z_t.cpu(), stats
