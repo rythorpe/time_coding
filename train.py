@@ -113,6 +113,60 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer,
     return np.mean(losses), param_dist
 
 
+def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
+               h_0, r_0, u_0, p_backprop=0.2):
+    dt = times[1] - times[0]
+    n_times = len(times)
+    init_params = model.W_hz.data.flatten()
+    model.train()
+    optimizer.zero_grad()
+
+    # run without calculating loss (and backprop) until t=0
+    h_t, r_t, u_t, z_t = model(inputs[:, times <= 0, :],
+                               h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+
+    # h_t_all = list()
+
+    # backprop gradient from current time through each previous step
+    t_0_idx = np.nonzero(times > 0)[0][0]
+    for t_idx in range(t_0_idx + 1, n_times, 1):
+        # compute prediction error
+        t_minus_1_idx = t_idx - 1
+        # set initial states to the last time point of the prior forward pass
+        h_0 = h_t[:, -1, :].detach()
+        if r_0 is not None:
+            r_0 = r_t[:, -1, :].detach()
+        if u_0 is not None:
+            u_0 = u_t[:, -1, :].detach()
+        h_t, r_t, u_t, z_t = model(inputs[:, t_minus_1_idx:t_idx, :],
+                                   h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+        # h_t_all.append(h_t)
+
+        # loss at most recent time step
+        loss = loss_fn(z_t[:, -1, :], targets[:, t_idx, :])
+        # backprop only a proportion of the observed time points to promote
+        # stability
+        if np.random.rand() < p_backprop:
+            loss.backward(retain_graph=True)
+
+        # for t_idx in range(len(h_t_all)):
+        #     h_t_all[-t_idx - 1].backward(h_t_all[-t_idx].grad, retain_graph=True)
+
+    optimizer.step()
+    # reset presyn_scaling vector
+    model.W_hh *= model.presyn_scaling.detach()
+    torch.nn.init.ones_(model.presyn_scaling)
+    # optimizer.zero_grad()
+
+    updated_params = model.W_hz.data.flatten()
+    # updated_params = updated_params.numpy(force=True)
+    # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
+    param_dist = (torch.linalg.norm(updated_params - init_params)
+                  / torch.linalg.norm(init_params))
+
+    return loss.item(), param_dist
+
+
 def train_output_only(inputs, targets, times, model, loss_fn, optimizer,
                       h_0, r_0, u_0):
     dt = times[1] - times[0]

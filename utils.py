@@ -46,18 +46,14 @@ def est_dimensionality(column_vars):
     return n_dim
 
 
-def get_gaussian_targets(n_batches, n_outputs, times, targ_std):
-    tstop = times[-1]
+def get_gaussian_targets(n_batches, peak_times, times, targ_std):
     n_times = len(times)
-    # tile center of target delays spanning sim duration (minus margins)
-    delta_delay = (tstop - 0.1) / n_outputs
-    output_delays = np.arange(delta_delay, tstop - 0.1 + delta_delay,
-                              delta_delay)
+    n_outputs = len(peak_times)
     targets = torch.zeros((n_batches, n_times, n_outputs))
-    for output_idx, center in enumerate(output_delays):
+    for output_idx, center in enumerate(peak_times):
         targets[0, :, output_idx] = torch.tensor(gaussian(times, center,
                                                           targ_std))
-    return targets, output_delays
+    return targets
 
 
 def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
