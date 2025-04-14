@@ -125,7 +125,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     h_t, r_t, u_t, z_t = model(inputs[:, times <= 0, :],
                                h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
 
-    # h_t_all = list()
+    losses = list()
 
     # backprop gradient from current time through each previous step
     t_0_idx = np.nonzero(times > 0)[0][0]
@@ -144,6 +144,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
 
         # loss at most recent time step
         loss = loss_fn(z_t[:, -1, :], targets[:, t_idx, :])
+        losses.append(loss.item())
         # backprop only a proportion of the observed time points to promote
         # stability
         if np.random.rand() < p_backprop:
@@ -164,7 +165,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     param_dist = (torch.linalg.norm(updated_params - init_params)
                   / torch.linalg.norm(init_params))
 
-    return loss.item(), param_dist
+    return np.mean(losses), param_dist
 
 
 def train_output_only(inputs, targets, times, model, loss_fn, optimizer,
