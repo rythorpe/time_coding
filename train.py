@@ -129,6 +129,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
 
     # backprop gradient from current time through each previous step
     t_0_idx = np.nonzero(times > 0)[0][0]
+    n_time_after_0 = np.count_nonzero(times > 0)
     for t_idx in range(t_0_idx + 1, n_times, 1):
         # compute prediction error
         t_minus_1_idx = t_idx - 1
@@ -143,12 +144,14 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
         # h_t_all.append(h_t)
 
         # loss at most recent time step
-        loss = loss_fn(z_t[:, -1, :], targets[:, t_idx, :])
-        losses.append(loss.item())
+        # normalize by number of loss samples accumulated during backprop
+        loss = loss_fn(z_t[:, -1, :], targets[:, t_idx, :]) / (n_time_after_0 * p_backprop)
+        
         # backprop only a proportion of the observed time points to promote
         # stability
         if np.random.rand() < p_backprop:
             loss.backward(retain_graph=True)
+            losses.append(loss.item())
 
         # for t_idx in range(len(h_t_all)):
         #     h_t_all[-t_idx - 1].backward(h_t_all[-t_idx].grad, retain_graph=True)
@@ -165,7 +168,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     param_dist = (torch.linalg.norm(updated_params - init_params)
                   / torch.linalg.norm(init_params))
 
-    return np.mean(losses), param_dist
+    return np.sum(losses), param_dist
 
 
 def train_output_only(inputs, targets, times, model, loss_fn, optimizer,
