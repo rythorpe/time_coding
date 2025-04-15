@@ -1,6 +1,7 @@
 """Training and test functions for RNN model."""
 
 import numpy as np
+from scipy.spatial import distance
 import matplotlib.pyplot as plt
 
 import torch
@@ -117,7 +118,8 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
                h_0, r_0, u_0, p_backprop=0.2):
     dt = times[1] - times[0]
     n_times = len(times)
-    init_params = model.W_hz.data.flatten()
+    init_params = torch.cat([par.detach().flatten()
+                             for par in model.parameters()])
     model.train()
     optimizer.zero_grad()
 
@@ -145,8 +147,9 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
 
         # loss at most recent time step
         # normalize by number of loss samples accumulated during backprop
-        loss = loss_fn(z_t[:, -1, :], targets[:, t_idx, :]) / (n_time_after_0 * p_backprop)
-        
+        loss = (loss_fn(z_t[:, -1, :], targets[:, t_idx, :]) /
+                (n_time_after_0 * p_backprop))
+
         # backprop only a proportion of the observed time points to promote
         # stability
         if np.random.rand() < p_backprop:
@@ -162,11 +165,13 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     torch.nn.init.ones_(model.presyn_scaling)
     # optimizer.zero_grad()
 
-    updated_params = model.W_hz.data.flatten()
+    updated_params = torch.cat([par.detach().flatten()
+                                for par in model.parameters()])
     # updated_params = updated_params.numpy(force=True)
-    # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
-    param_dist = (torch.linalg.norm(updated_params - init_params)
-                  / torch.linalg.norm(init_params))
+    param_dist = distance.cosine(init_params.numpy(force=True),
+                                 updated_params.numpy(force=True))
+    # param_dist = (torch.linalg.norm(updated_params - init_params)
+    #               / torch.linalg.norm(init_params))
 
     return np.sum(losses), param_dist
 
