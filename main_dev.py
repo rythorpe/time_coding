@@ -15,6 +15,7 @@ from torch import nn
 from utils import gaussian, get_gaussian_targets
 from models import RNN
 from train import test_and_get_stats, pre_train, train_force, train_bptt, train_output_only
+from viz import plot_stability
 
 
 # set meta-parameters
@@ -29,16 +30,17 @@ np.random.seed(35107)
 
 
 # define parameter sweep
-# n_samp = 3
-n_nets_per_samp = 1
-# params = {'n_outputs': np.linspace(5, 25, n_samp),
+n_samps = 3
+# n_nets_per_samp = 10
+# params = {'stp_heterogeneity': ['none', 'homo', 'hetero'],
+#           'n_outputs': np.linspace(5, 25, n_samp),
 #           'targ_std': np.linspace(0.005, 0.025, n_samp)}
 # xx, yy = np.meshgrid(params['n_outputs'], params['targ_std'])
 # param_vals = [pt for pt in zip(xx.flatten(), yy.flatten())]
 # # repeat samples to get multiple random nets per configuration
 # param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 # n_total_trials = param_vals.shape[0]
-params = {'perturbation_mag': np.array([0.0])}
+params = {'perturbation_mag': np.array([1.0, 1.1, 1.2])}
 
 
 def train_test_random_net(params=None, plot_sim=False):
@@ -55,7 +57,7 @@ def train_test_random_net(params=None, plot_sim=False):
     model.to(device)
 
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=3e-1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-1)
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-5)
 
     # set parameters
@@ -76,7 +78,6 @@ def train_test_random_net(params=None, plot_sim=False):
     # set std s.t. amplitude decays to 1/e at intersection with next target
     targ_std = 0.05 / np.sqrt(2)  # ~35 ms
     # tile center of target delays spanning sim duration (minus margins)
-    delta_delay = (tstop - 0.1) / n_outputs
     delay_times = np.linspace(0.1, 1.0, n_outputs)
     targets = get_gaussian_targets(n_batches, delay_times, times, targ_std)
 
@@ -88,7 +89,7 @@ def train_test_random_net(params=None, plot_sim=False):
     # r_0 = torch.rand(n_hidden) * model.p_rel.detach()  # uniform in (0, p_rel)
     r_0 = model.p_rel.detach() / (1 + model.beta * 0.5 * model.tau_depr)  # uniform in (0, p_rel)
     r_0 = torch.tile(r_0, (n_batches, 1))
-    u_0 = torch.rand(n_hidden) # uniform in (0, 1)
+    u_0 = torch.rand(n_hidden)  # uniform in (0, 1)
     u_0 = torch.tile(u_0, (n_batches, 1))
 
     # run opt routine
@@ -104,7 +105,7 @@ def train_test_random_net(params=None, plot_sim=False):
     # plot model output before training
     hidden_sr, output_sr, stats_0 = test_and_get_stats(inputs, targets, times,
                                                        model, loss_fn, h_0,
-                                                       r_0, u_0, plot=True)
+                                                       r_0, u_0, plot=plot_sim)
 
     # pre-train
     # max_iter_pretrain = 10
@@ -112,8 +113,7 @@ def train_test_random_net(params=None, plot_sim=False):
     #     _ = pre_train(inputs, times, model, h_0)
 
     # train model weights
-    max_iter = 100
-    # subthresh_count = 0
+    max_iter = 200
     # convergence_reached = False
     loss_per_iter = list()
     for iter_idx in range(max_iter):
@@ -127,14 +127,12 @@ def train_test_random_net(params=None, plot_sim=False):
         # loss, param_dist = train_output_only(inputs, targets, times, model,
         #                                      loss_fn, optimizer, h_0, r_0, u_0)
         loss_per_iter.append(loss)
-    #     if param_dist < 1e-8:
-    #         subthresh_count +=1
-    #     else:
-    #         subthresh_count = 0
-    #     if subthresh_count == 5:
-    #         convergence_reached = True
-    #         break
-    # print(f"Trial {sample_idx} training complete!!")
+        # recent_loss_std = np.std(loss_per_iter[-20:])
+        # loss_range = np.max(loss_per_iter) - np.min(loss_per_iter)
+        # if recent_loss_std < 1e-3 * loss_range:
+        #     convergence_reached = True
+        #     break
+    print(f"Trial training complete!!")
     # if not convergence_reached:
     #     print(f"Warning: didn't converge (param_dist={param_dist})!!")
 
@@ -153,15 +151,12 @@ def train_test_random_net(params=None, plot_sim=False):
                                                        plot=plot_sim)
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
-    n_tests_per_net = 10
+    n_tests_per_net = 1
     perturb_dur = 0.05  # 50 ms
     perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
     n_perturb = len(params['perturbation_mag'])
     loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, n_outputs])
     for test_idx in range(n_tests_per_net):
-        # initialize random conn for I(t)->recurrent units
-        w_input_std = 1 / np.sqrt(n_hidden)
-        torch.nn.init.normal_(model.W_ih, mean=0.0, std=w_input_std)
         for perturb_idx, perturb_mag in enumerate(params['perturbation_mag']):
             # now, set perturbation magnitude of input before t=0s
             inputs = torch.zeros((n_batches, n_times, n_inputs))

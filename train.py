@@ -118,8 +118,8 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
                h_0, r_0, u_0, p_backprop=0.2):
     dt = times[1] - times[0]
     n_times = len(times)
-    init_params = torch.cat([par.detach().flatten()
-                             for par in model.parameters()])
+    # init_params = torch.cat([par.detach().flatten()
+    #                          for par in model.parameters()])
     model.train()
     optimizer.zero_grad()
 
@@ -165,13 +165,11 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     torch.nn.init.ones_(model.presyn_scaling)
     # optimizer.zero_grad()
 
-    updated_params = torch.cat([par.detach().flatten()
-                                for par in model.parameters()])
-    # updated_params = updated_params.numpy(force=True)
-    param_dist = distance.cosine(init_params.numpy(force=True),
-                                 updated_params.numpy(force=True))
-    # param_dist = (torch.linalg.norm(updated_params - init_params)
-    #               / torch.linalg.norm(init_params))
+    # updated_params = torch.cat([par.detach().flatten()
+    #                             for par in model.parameters()])
+    # param_dist = distance.cosine(init_params.numpy(force=True),
+    #                              updated_params.numpy(force=True))
+    param_dist = None
 
     return np.sum(losses), param_dist
 
