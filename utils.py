@@ -79,7 +79,7 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
     # 1st (and only) batch, 1st third of recurrent trajectories
     h_transfer_subset = np.array(h_transfer[0, :, :n_hidden // 3])
     opt_basis, eigvals = est_optimal_basis(h_transfer_subset,
-                                               n_basis_funcs=n_opt_basis)
+                                           n_basis_funcs=n_opt_basis)
 
     if plot:
         fig, axes = plt.subplots(1, 2)
