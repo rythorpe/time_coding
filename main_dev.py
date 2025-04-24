@@ -15,7 +15,7 @@ from torch import nn
 from utils import gaussian, get_gaussian_targets
 from models import RNN
 from train import test_and_get_stats, pre_train, train_force, train_bptt
-from viz import plot_stability
+from viz import plot_divergence, plot_learning
 
 
 # set meta-parameters
@@ -31,7 +31,7 @@ np.random.seed(35107)
 
 # define parameter sweep
 # n_samps = 3
-n_nets_per_samp = 5
+n_nets_per_samp = 30
 # params = {'stp_heterogeneity': ['none', 'homo', 'hetero'],
 #           'n_outputs': np.linspace(5, 25, n_samp),
 #           'targ_std': np.linspace(0.005, 0.025, n_samp)}
@@ -40,7 +40,8 @@ n_nets_per_samp = 5
 # # repeat samples to get multiple random nets per configuration
 # param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 # n_total_trials = param_vals.shape[0]
-params = {'perturbation_mag': np.array([1.0, 1.5, 2.0])}
+params = {'heterogeneity': ['high-hetero', 'low-hetero', 'homo'],
+          'perturbation_mag': np.array([1.0, 1.5, 2.0])}
 
 
 def train_test_random_net(params=None, plot_sim=False):
@@ -129,10 +130,7 @@ def train_test_random_net(params=None, plot_sim=False):
 
     # plot loss across training
     if plot_sim:
-        plt.figure()
-        plt.plot(loss_per_iter)
-        plt.xlabel('iteration')
-        plt.ylabel('loss')
+        fig_learning = plot_learning([stats_0['loss']] + loss_per_iter)
 
     # investigate fitted model
     # plot model output after training
@@ -148,7 +146,8 @@ def train_test_random_net(params=None, plot_sim=False):
     times_after_zero = times[times > 0]
     n_perturb = len(params['perturbation_mag'])
     # loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, n_outputs])
-    loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, len(times_after_zero)])
+    loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb,
+                                len(times_after_zero)])
     for test_idx in range(n_tests_per_net):
         for perturb_idx, perturb_mag in enumerate(params['perturbation_mag']):
             # now, set perturbation magnitude of input before t=0s
@@ -167,8 +166,10 @@ def train_test_random_net(params=None, plot_sim=False):
     divergence = (loss_vs_perturb /
                   np.tile(loss_vs_perturb[0, :], [n_perturb, 1]))
     metrics['divergence'] = divergence
-    metrics['delay_times'] = delay_times
     metrics['response_times'] = times_after_zero
+    metrics['final_loss'] = stats_0['loss']
+    metrics['final_dim'] = stats_1['dimensionality']
+    metrics['dim_diff'] = stats_1['dimensionality'] - stats_0['dimensionality']
 
     ####################################################
     return metrics
@@ -190,10 +191,7 @@ for key in res[0].keys():
     for trial in res:
         metrics[key].append(trial[key])
 
-# stability = res['stability']
-# delay_times = res['delay_times']
 divergence = np.mean(metrics['divergence'], axis=0)
-# delay_times = metrics['delay_times'][0]
 delay_times = metrics['response_times'][0]
 perturb_mags = params['perturbation_mag']
-fig_stability = plot_stability(divergence, delay_times, perturb_mags)
+fig_divergence = plot_divergence(divergence, delay_times, perturb_mags)

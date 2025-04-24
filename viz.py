@@ -104,3 +104,17 @@ def plot_divergence(divergence, delay_times, perturb_mags):
     fig.tight_layout()
 
     return fig
+
+
+def plot_learning(losses):
+    fig, ax = plt.subplots(1, 1, figsize=(4, 3))
+    iter_idxs = list(range(len(losses)))
+    ax.semilogy(iter_idxs, losses, 'k')
+    ax.grid(axis='y')
+    ax.grid(which="minor", color="0.9")
+    ax.set_xticks([0, len(losses) - 1])
+    ax.set_xlabel('iteration')
+    ax.set_ylabel('loss')
+    fig.tight_layout()
+
+    return fig
