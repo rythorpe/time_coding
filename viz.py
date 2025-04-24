@@ -89,17 +89,17 @@ def plot_state_traj(h_units, outputs, targets, times):
     return fig
 
 
-def plot_stability(stability, delay_times, perturb_mags):
+def plot_divergence(divergence, delay_times, perturb_mags):
     colors = plt.cm.inferno_r(np.linspace(0.1, 1, len(perturb_mags)))
     fig, ax = plt.subplots(1, 1, figsize=(3, 3))
-    for perturb_mag_idx, perturb_stability in enumerate(stability):
+    for perturb_mag_idx, perturb_divergence in enumerate(divergence):
         perturb_mag_str = f'{perturb_mags[perturb_mag_idx]}'
-        ax.plot(delay_times, perturb_stability, label=perturb_mag_str,
+        ax.plot(delay_times, perturb_divergence, label=perturb_mag_str,
                 c=colors[perturb_mag_idx], lw=2)
     ax.legend()
-    ax.set_yticks([0.5, 1])
+    # ax.set_yticks([0.5, 1])
     ax.set_xticks([0, 0.5, 1])
-    ax.set_ylabel('target stability')
+    ax.set_ylabel('divergence')
     ax.set_xlabel('time (s)')
     fig.tight_layout()
 

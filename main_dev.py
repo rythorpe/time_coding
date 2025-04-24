@@ -40,7 +40,7 @@ n_nets_per_samp = 5
 # # repeat samples to get multiple random nets per configuration
 # param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 # n_total_trials = param_vals.shape[0]
-params = {'perturbation_mag': np.array([1.0, 1.01, 1.02])}
+params = {'perturbation_mag': np.array([1.0, 1.5, 2.0])}
 
 
 def train_test_random_net(params=None, plot_sim=False):
@@ -96,8 +96,8 @@ def train_test_random_net(params=None, plot_sim=False):
     h_0 = h_0.to(device)
     r_0 = r_0.to(device)
     # r_0 = None
-    # u_0 = u_0.to(device)
-    u_0 = None
+    u_0 = u_0.to(device)
+    # u_0 = None
 
     # plot model output before training
     hidden_sr, output_sr, stats_0 = test_and_get_stats(inputs, targets, times,
@@ -164,9 +164,9 @@ def train_test_random_net(params=None, plot_sim=False):
             # loss = loss * targets[:, times > 0, :]
             loss_vs_perturb[test_idx, perturb_idx, :] = loss.mean(dim=(0, 2))
     loss_vs_perturb = loss_vs_perturb.mean(axis=0)  # avg over rand input conns
-    stability = (np.tile(loss_vs_perturb[0, :], [n_perturb, 1]) /
-                 loss_vs_perturb)
-    metrics['stability'] = stability
+    divergence = (loss_vs_perturb /
+                  np.tile(loss_vs_perturb[0, :], [n_perturb, 1]))
+    metrics['divergence'] = divergence
     metrics['delay_times'] = delay_times
     metrics['response_times'] = times_after_zero
 
@@ -175,7 +175,7 @@ def train_test_random_net(params=None, plot_sim=False):
 
 
 # run single trial
-# res = train_test_random_net(params, plot_sim=False)
+# res = train_test_random_net(params, plot_sim=True)
 
 # run sweep sequentially
 # for param in param_vals:
@@ -192,8 +192,8 @@ for key in res[0].keys():
 
 # stability = res['stability']
 # delay_times = res['delay_times']
-stability = np.mean(metrics['stability'], axis=0)
+divergence = np.mean(metrics['divergence'], axis=0)
 # delay_times = metrics['delay_times'][0]
-delay_times = metrics['times_after_zero'][0]
+delay_times = metrics['response_times'][0]
 perturb_mags = params['perturbation_mag']
-fig_stability = plot_stability(stability, delay_times, perturb_mags)
+fig_stability = plot_stability(divergence, delay_times, perturb_mags)
