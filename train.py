@@ -114,8 +114,8 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer,
     return np.mean(losses), param_dist
 
 
-def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0, p_backprop=0.2):
+def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
+                      h_0, r_0, u_0, p_backprop=0.2):
     dt = times[1] - times[0]
     n_times = len(times)
     # init_params = torch.cat([par.detach().flatten()
@@ -174,7 +174,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     return np.sum(losses), param_dist
 
 
-def train_output_only(inputs, targets, times, model, loss_fn, optimizer,
+def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
                       h_0, r_0, u_0):
     dt = times[1] - times[0]
     n_times = len(times)
