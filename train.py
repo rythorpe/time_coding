@@ -175,7 +175,7 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-                      h_0, r_0, u_0):
+               h_0, r_0, u_0):
     dt = times[1] - times[0]
     n_times = len(times)
     init_params = model.W_hz.data.flatten()
