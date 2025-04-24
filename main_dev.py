@@ -14,7 +14,7 @@ from torch import nn
 
 from utils import gaussian, get_gaussian_targets
 from models import RNN
-from train import test_and_get_stats, pre_train, train_force, train_bptt, train_output_only
+from train import test_and_get_stats, pre_train, train_force, train_bptt
 from viz import plot_stability
 
 
@@ -30,8 +30,8 @@ np.random.seed(35107)
 
 
 # define parameter sweep
-n_samps = 3
-# n_nets_per_samp = 10
+# n_samps = 3
+n_nets_per_samp = 5
 # params = {'stp_heterogeneity': ['none', 'homo', 'hetero'],
 #           'n_outputs': np.linspace(5, 25, n_samp),
 #           'targ_std': np.linspace(0.005, 0.025, n_samp)}
@@ -40,7 +40,7 @@ n_samps = 3
 # # repeat samples to get multiple random nets per configuration
 # param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
 # n_total_trials = param_vals.shape[0]
-params = {'perturbation_mag': np.array([1.0, 1.1, 1.2])}
+params = {'perturbation_mag': np.array([1.0, 1.01, 1.02])}
 
 
 def train_test_random_net(params=None, plot_sim=False):
@@ -58,7 +58,6 @@ def train_test_random_net(params=None, plot_sim=False):
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-1)
-    # optimizer = torch.optim.SGD(model.parameters(), lr=1e-5)
 
     # set parameters
     # simulation parameters
@@ -83,13 +82,11 @@ def train_test_random_net(params=None, plot_sim=False):
 
     # set initial conditions of recurrent units fixed across iterations of
     # training and testing
-    # h_0 = torch.rand(n_hidden) * 2 - 1  # uniform in (-1, 1)
-    h_0 = torch.zeros(n_hidden)
+    h_0 = torch.zeros(n_hidden)  # steady-state for postsyn activity var
     h_0 = torch.tile(h_0, (n_batches, 1))  # replicate for each batch
-    # r_0 = torch.rand(n_hidden) * model.p_rel.detach()  # uniform in (0, p_rel)
-    r_0 = model.p_rel.detach() / (1 + model.beta * 0.5 * model.tau_depr)  # uniform in (0, p_rel)
+    r_0 = torch.ones(n_hidden)  # steady-state for depression var
     r_0 = torch.tile(r_0, (n_batches, 1))
-    u_0 = torch.rand(n_hidden)  # uniform in (0, 1)
+    u_0 = model.p_rel.detach()  # steady-state for facilitation var
     u_0 = torch.tile(u_0, (n_batches, 1))
 
     # run opt routine
@@ -113,19 +110,13 @@ def train_test_random_net(params=None, plot_sim=False):
     #     _ = pre_train(inputs, times, model, h_0)
 
     # train model weights
-    max_iter = 200
+    max_iter = 100
     # convergence_reached = False
     loss_per_iter = list()
     for iter_idx in range(max_iter):
         print(f"Iteration {iter_idx + 1}")
-        # loss, param_dist = train_force(inputs, targets, times, model, loss_fn,
-        #                                optimizer, h_0, r_0, u_0,
-        #                                presyn_idx=iter_idx)
         loss, param_dist = train_bptt(inputs, targets, times, model, loss_fn,
-                                      optimizer, h_0, r_0, u_0,
-                                      p_backprop=0.2)
-        # loss, param_dist = train_output_only(inputs, targets, times, model,
-        #                                      loss_fn, optimizer, h_0, r_0, u_0)
+                                      optimizer, h_0, r_0, u_0)
         loss_per_iter.append(loss)
         # recent_loss_std = np.std(loss_per_iter[-20:])
         # loss_range = np.max(loss_per_iter) - np.min(loss_per_iter)
@@ -154,8 +145,10 @@ def train_test_random_net(params=None, plot_sim=False):
     n_tests_per_net = 1
     perturb_dur = 0.05  # 50 ms
     perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
+    times_after_zero = times[times > 0]
     n_perturb = len(params['perturbation_mag'])
-    loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, n_outputs])
+    # loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, n_outputs])
+    loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, len(times_after_zero)])
     for test_idx in range(n_tests_per_net):
         for perturb_idx, perturb_mag in enumerate(params['perturbation_mag']):
             # now, set perturbation magnitude of input before t=0s
@@ -168,35 +161,39 @@ def train_test_random_net(params=None, plot_sim=False):
                                              plot=plot_sim)
             loss = stats['loss']
             # weight loss by Gaussian target over time
-            loss = loss * targets[:, times > 0, :]
-            loss_vs_perturb[test_idx, perturb_idx, :] = loss.mean(dim=[0, 1])
+            # loss = loss * targets[:, times > 0, :]
+            loss_vs_perturb[test_idx, perturb_idx, :] = loss.mean(dim=(0, 2))
     loss_vs_perturb = loss_vs_perturb.mean(axis=0)  # avg over rand input conns
     stability = (np.tile(loss_vs_perturb[0, :], [n_perturb, 1]) /
                  loss_vs_perturb)
     metrics['stability'] = stability
     metrics['delay_times'] = delay_times
+    metrics['response_times'] = times_after_zero
 
     ####################################################
     return metrics
 
 
 # run single trial
-res = train_test_random_net(params, plot_sim=True)
+# res = train_test_random_net(params, plot_sim=False)
 
 # run sweep sequentially
 # for param in param_vals:
 #     train_test_random_net(params)
 
 # run sweep in parallel
-# res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
-#                           for idx in range(n_nets_per_samp))
+res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
+                          for idx in range(n_nets_per_samp))
 
-# metrics = defaultdict(list)
-# for key in res[0].keys():
-#     for trial in res:
-#         metrics[key].append(trial[key])
+metrics = defaultdict(list)
+for key in res[0].keys():
+    for trial in res:
+        metrics[key].append(trial[key])
 
-# stability = np.mean(metrics['stability'], axis=0)
+# stability = res['stability']
+# delay_times = res['delay_times']
+stability = np.mean(metrics['stability'], axis=0)
 # delay_times = metrics['delay_times'][0]
-# perturb_mags = params['perturbation_mag']
-# fig_stability = plot_stability(stability, delay_times, perturb_mags)
+delay_times = metrics['times_after_zero'][0]
+perturb_mags = params['perturbation_mag']
+fig_stability = plot_stability(stability, delay_times, perturb_mags)
