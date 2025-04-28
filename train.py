@@ -220,7 +220,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         # simulate and calculate total output error
         h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-    
+
     try:
         print(f"Test loss: {loss.item():>7f}")
     except RuntimeError:
@@ -240,5 +240,5 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     # calculate metrics-of-interest
     n_dim = est_dimensionality(hidden_batch)
     stats = dict(loss=loss, dimensionality=n_dim)
-    
+
     return torch.tanh(h_t).cpu(), z_t.cpu(), stats
