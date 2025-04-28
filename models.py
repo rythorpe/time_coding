@@ -14,7 +14,7 @@ def get_jacobian(h_t_minus_1):
 
 class RNN(nn.Module):
     def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
-                 echo_state=False):
+                 p_rel_range=(0.1, 0.9), include_stp=True):
         super().__init__()
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
@@ -25,8 +25,12 @@ class RNN(nn.Module):
         self.beta = 20.0
         self.effective_gain = 1.6
         # stp_gain_adjustment = 1 / (0.5 / (1 + self.beta * 0.5 * self.tau_depr))
-        stp_gain_adjustment = 1 / 0.5
-        self.gain = self.effective_gain * stp_gain_adjustment
+        stp_gain_adjustment = 1 / np.mean(p_rel_range)
+        self.gain = self.effective_gain
+        # need to adjust synaptic gain if STP is included in the model
+        self.include_stp = include_stp
+        if include_stp:
+            self.gain *= stp_gain_adjustment
         prob_c = 0.10
 
         # constant network parameters
@@ -42,7 +46,7 @@ class RNN(nn.Module):
 
         # initialize release probabilities
         # bounds taken from Tsodyks & Markram PNAS 1997
-        torch.nn.init.uniform_(self.p_rel, a=0.1, b=0.90)
+        torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
 
         # initialize input weights
         w_input_std = 1 / np.sqrt(n_hidden)
@@ -89,11 +93,11 @@ class RNN(nn.Module):
         for batch_idx in range(batch_size):
             # each batch can theoretically have distinct initial conditions,
             # injected noise, or inputs
-            if r_0 is None:
+            if r_0 is None or self.include_stp is False:
                 r_t_minus_1 = torch.ones(self.n_hidden)
             else:
                 r_t_minus_1 = r_0[batch_idx, :]
-            if u_0 is None:
+            if u_0 is None or self.include_stp is False:
                 u_t_minus_1 = torch.ones(self.n_hidden)
             else:
                 u_t_minus_1 = u_0[batch_idx, :]
@@ -106,7 +110,7 @@ class RNN(nn.Module):
                 self.noise.normal_(0, self.noise_std)
 
                 # pre-syn STP: depletion of resources (depression)
-                if r_0 is None:
+                if r_0 is None or self.include_stp is False:
                     # silence the effect of syn depression
                     r_t = torch.ones(self.n_hidden)
                 else:
@@ -116,16 +120,18 @@ class RNN(nn.Module):
                     #         - self.beta * r_t_minus_1 * h_transfer)
                             # + self.beta * self.p_rel / 2)
                     r_t = hard_tanh(r_t_minus_1 + drdt * dt)  # impose bounds
+                    # r_t = r_t_minus_1 + drdt * dt
                 r_t_all[batch_idx, t_idx, :] = r_t.clone()
 
                 # pre-syn STP: augmentation of utilization (facilitation)
-                if u_0 is None:
+                if u_0 is None or self.include_stp is False:
                     # silence the effect of syn facilitation
                     u_t = torch.ones(self.n_hidden)
                 else:
                     dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
                             + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
                     u_t = hard_tanh(u_t_minus_1 + dudt * dt)  # impose bounds
+                    # u_t = u_t_minus_1 + dudt * dt
                 u_t_all[batch_idx, t_idx, :] = u_t.clone()
 
                 # calculate total transfer weight

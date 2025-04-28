@@ -30,31 +30,32 @@ np.random.seed(35107)
 
 
 # define parameter sweep
-# n_samps = 3
-n_nets_per_samp = 30
-# params = {'stp_heterogeneity': ['none', 'homo', 'hetero'],
-#           'n_outputs': np.linspace(5, 25, n_samp),
-#           'targ_std': np.linspace(0.005, 0.025, n_samp)}
-# xx, yy = np.meshgrid(params['n_outputs'], params['targ_std'])
-# param_vals = [pt for pt in zip(xx.flatten(), yy.flatten())]
-# # repeat samples to get multiple random nets per configuration
-# param_vals = np.tile(param_vals, (n_nets_per_samp, 1))
-# n_total_trials = param_vals.shape[0]
-params = {'heterogeneity': ['high-hetero', 'low-hetero', 'homo'],
-          'perturbation_mag': np.array([1.0, 1.5, 2.0])}
+n_nets_per_param = 5
+params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
+param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
+                     (n_nets_per_param,))
 
 
-def train_test_random_net(params=None, plot_sim=False):
+def train_test_random_net(param_val, plot_sim=False):
     '''Call this func on each parallel process.'''
-    if params is not None:
-        # param_1, param_2 = params
-        pass
+
+    # sim/sweep params for a given network instantiation
+    perturbation_mag = np.array([1.0, 1.5, 2.0])
+    p_rel_range = (0.1, 0.9)
+    if param_val == 'none':
+        include_stp = False
+    else:
+        include_stp = True
+        p_rel_range = param_val
+
     metrics = dict()
+    metrics['perturbation_mag'] = perturbation_mag
 
     # instantiate model, loss function, and optimizer
     n_inputs, n_hidden, n_outputs = 1, 300, 10
     model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
-                n_outputs=n_outputs, echo_state=False)
+                n_outputs=n_outputs, p_rel_range=p_rel_range,
+                include_stp=include_stp)
     model.to(device)
 
     loss_fn = nn.MSELoss()
@@ -96,14 +97,11 @@ def train_test_random_net(params=None, plot_sim=False):
     targets = targets.to(device)
     h_0 = h_0.to(device)
     r_0 = r_0.to(device)
-    # r_0 = None
     u_0 = u_0.to(device)
-    # u_0 = None
 
     # plot model output before training
-    hidden_sr, output_sr, stats_0 = test_and_get_stats(inputs, targets, times,
-                                                       model, loss_fn, h_0,
-                                                       r_0, u_0, plot=plot_sim)
+    _, _, stats_0 = test_and_get_stats(inputs, targets, times, model,
+                                       loss_fn, h_0, r_0, u_0, plot=plot_sim)
 
     # pre-train
     # max_iter_pretrain = 10
@@ -111,7 +109,7 @@ def train_test_random_net(params=None, plot_sim=False):
     #     _ = pre_train(inputs, times, model, h_0)
 
     # train model weights
-    max_iter = 400
+    max_iter = 500
     convergence_reached = False
     loss_per_iter = list()
     for iter_idx in range(max_iter):
@@ -123,8 +121,10 @@ def train_test_random_net(params=None, plot_sim=False):
             mean_diff = np.diff(loss_per_iter[-10:]).mean()
             if np.abs(mean_diff) < 1e-6:
                 convergence_reached = True
+                print('Trial training complete!!!')
                 break
-    print(f"Trial training complete!!")
+    if convergence_reached is False:
+        print('Warning: convergence not reached!!!')
 
     # plot loss across training
     if plot_sim:
@@ -132,44 +132,45 @@ def train_test_random_net(params=None, plot_sim=False):
 
     # investigate fitted model
     # plot model output after training
-    hidden_sr, output_sr, stats_1 = test_and_get_stats(inputs, targets, times,
-                                                       model, loss_fn, h_0,
-                                                       r_0, u_0,
-                                                       plot=plot_sim)
+    _, output_sr_1, stats_1 = test_and_get_stats(inputs, targets, times,
+                                                 model, loss_fn,
+                                                 h_0, r_0, u_0,
+                                                 plot=plot_sim)
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
     n_tests_per_net = 1
     perturb_dur = 0.05  # 50 ms
     perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
-    times_after_zero = times[times > 0]
-    n_perturb = len(params['perturbation_mag'])
+    times_mask = np.logical_and(times > 0.0, times <= 1.0)
+    times_after_zero = times[times_mask]
+    n_perturb = len(perturbation_mag)
     # loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb, n_outputs])
     loss_vs_perturb = np.zeros([n_tests_per_net, n_perturb,
                                 len(times_after_zero)])
+    mse_fn = nn.MSELoss(reduction='none')
     for test_idx in range(n_tests_per_net):
-        for perturb_idx, perturb_mag in enumerate(params['perturbation_mag']):
+        for perturb_idx, perturb_mag in enumerate(perturbation_mag):
             # now, set perturbation magnitude of input before t=0s
             inputs = torch.zeros((n_batches, n_times, n_inputs))
             inputs[:, perturb_win_mask, :] = perturb_mag
 
-            loss_fn_itemized = nn.MSELoss(reduction='none')
-            _, _, stats = test_and_get_stats(inputs, targets, times, model,
-                                             loss_fn_itemized, h_0, r_0, u_0,
-                                             plot=plot_sim)
-            loss = stats['loss']
-            # weight loss by Gaussian target over time
-            # loss = loss * targets[:, times > 0, :]
-            loss_vs_perturb[test_idx, perturb_idx, :] = loss.mean(dim=(0, 2))
-    loss_vs_perturb = loss_vs_perturb.mean(axis=0)  # avg over rand input conns
-    divergence = (loss_vs_perturb /
-                  np.tile(loss_vs_perturb[0, :], [n_perturb, 1]))
+            _, output_sr_2, stats_2 = test_and_get_stats(inputs, targets,
+                                                         times, model,
+                                                         loss_fn,
+                                                         h_0, r_0, u_0,
+                                                         plot=plot_sim)
+            mse = mse_fn(output_sr_2[:, times_mask, :],
+                         output_sr_1[:, times_mask, :])
+            loss_vs_perturb[test_idx, perturb_idx, :] = mse.mean(dim=(0, 2))
+    divergence = loss_vs_perturb.mean(axis=0)  # avg over rand input conns
+
     metrics['divergence'] = divergence
     metrics['response_times'] = times_after_zero
-    metrics['final_loss'] = stats_0['loss']
+    metrics['final_loss'] = stats_1['loss']
+    metrics['n_learning_trials'] = iter_idx + 1
     metrics['final_dim'] = stats_1['dimensionality']
     metrics['dim_diff'] = stats_1['dimensionality'] - stats_0['dimensionality']
 
-    ####################################################
     return metrics
 
 
@@ -181,15 +182,16 @@ def train_test_random_net(params=None, plot_sim=False):
 #     train_test_random_net(params)
 
 # run sweep in parallel
-res = Parallel(n_jobs=10)(delayed(train_test_random_net)(params)
-                          for idx in range(n_nets_per_samp))
+res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_val)
+                          for param_val in param_vals)
 
 metrics = defaultdict(list)
 for key in res[0].keys():
     for trial in res:
         metrics[key].append(trial[key])
 
+p_rel_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
 divergence = np.mean(metrics['divergence'], axis=0)
 delay_times = metrics['response_times'][0]
-perturb_mags = params['perturbation_mag']
+perturb_mags = metrics['perturbation_mag'][0]
 fig_divergence = plot_divergence(divergence, delay_times, perturb_mags)
