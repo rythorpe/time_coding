@@ -24,6 +24,16 @@ def gaussian(x, center, width):
     return np.exp(-(x - center) ** 2 / (2 * width ** 2))
 
 
+def randn_cropped(mean, std, shape, lb=0.0, ub=1.0):
+    n_samps = np.prod(shape)
+    randn_tensor = (torch.randn((n_samps,)) * std) + mean
+    for idx, sample in enumerate(randn_tensor):
+        while sample <= lb or sample >= ub:
+            sample = (torch.randn(1) * std) + mean
+        randn_tensor[idx] = sample
+    return torch.reshape(randn_tensor, shape)
+
+
 def est_optimal_basis(column_vars, n_basis_funcs=10):
     # each column is a variable / channel
     # each row is an observation / sample
