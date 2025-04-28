@@ -161,9 +161,9 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
 
     optimizer.step()
     # reset presyn_scaling vector
-    model.W_hh *= model.presyn_scaling.detach()
-    torch.nn.init.ones_(model.presyn_scaling)
-    # optimizer.zero_grad()
+    # model.W_hh *= model.presyn_scaling.detach()
+    # torch.nn.init.ones_(model.presyn_scaling)
+    optimizer.zero_grad()
 
     # updated_params = torch.cat([par.detach().flatten()
     #                             for par in model.parameters()])
