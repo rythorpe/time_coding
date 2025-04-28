@@ -106,13 +106,17 @@ def plot_divergence(divergence, delay_times, perturb_mags):
     return fig
 
 
-def plot_learning(losses):
+def plot_learning(losses, max_iter=None):
     fig, ax = plt.subplots(1, 1, figsize=(4, 3))
     iter_idxs = list(range(len(losses)))
     ax.semilogy(iter_idxs, losses, 'k')
     ax.grid(axis='y')
     ax.grid(which="minor", color="0.9")
-    ax.set_xticks([0, len(losses) - 1])
+    if max_iter is None:
+        ub_xtick = len(losses) - 1
+    else:
+        ub_xtick = max_iter
+    ax.set_xticks([0, ub_xtick])
     ax.set_xlabel('iteration')
     ax.set_ylabel('loss')
     fig.tight_layout()
