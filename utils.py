@@ -40,7 +40,7 @@ def est_dimensionality(column_vars):
     # each row is an observation / sample
     cov = np.cov(column_vars, rowvar=False)
     eigvals, eigvecs = scipy.linalg.eig(cov)
-    eigvals = np.real(eigvals)
+    eigvals = np.abs(eigvals)
     eigvals /= np.sum(eigvals)
     n_dim = 1 / np.sum(eigvals ** 2)
     return n_dim
