@@ -57,8 +57,6 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer,
                 h_0, r_0, u_0, presyn_idx=0, debug_backprop=False):
     dt = times[1] - times[0]
     n_times = len(times)
-    init_params = model.W_hz.data.flatten()
-    # init_params = init_params.numpy(force=True)
     model.train()
 
     # run model without storing gradients until t=0
@@ -91,8 +89,6 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer,
         # backpropagation
         loss.backward()
 
-        # print(model.presyn_scaling.grad)
-
         # if debug_backprop:
         #     dWhh_dloss_true = model.W_hh[:, :].copy().flatten()
 
@@ -105,21 +101,13 @@ def train_force(inputs, targets, times, model, loss_fn, optimizer,
 
         losses.append(loss.item())
 
-    updated_params = model.W_hz.data.flatten()
-    # updated_params = updated_params.numpy(force=True)
-    # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
-    param_dist = (torch.linalg.norm(updated_params - init_params)
-                  / torch.linalg.norm(init_params))
-
-    return np.mean(losses), param_dist
+    return np.mean(losses)
 
 
 def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
                       h_0, r_0, u_0, p_backprop=0.2):
     dt = times[1] - times[0]
     n_times = len(times)
-    # init_params = torch.cat([par.detach().flatten()
-    #                          for par in model.parameters()])
     model.train()
     optimizer.zero_grad()
 
@@ -156,30 +144,18 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
             loss.backward(retain_graph=True)
             losses.append(loss.item())
 
-        # for t_idx in range(len(h_t_all)):
-        #     h_t_all[-t_idx - 1].backward(h_t_all[-t_idx].grad, retain_graph=True)
-
     optimizer.step()
     # reset presyn_scaling vector
     # model.W_hh *= model.presyn_scaling.detach()
     # torch.nn.init.ones_(model.presyn_scaling)
     optimizer.zero_grad()
 
-    # updated_params = torch.cat([par.detach().flatten()
-    #                             for par in model.parameters()])
-    # param_dist = distance.cosine(init_params.numpy(force=True),
-    #                              updated_params.numpy(force=True))
-    param_dist = None
-
-    return np.sum(losses), param_dist
+    return np.sum(losses)
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
                h_0, r_0, u_0):
     dt = times[1] - times[0]
-    n_times = len(times)
-    init_params = model.W_hz.data.flatten()
-    # init_params = init_params.numpy(force=True)
     model.train()
 
     h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
@@ -189,13 +165,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     optimizer.step()
     optimizer.zero_grad()
 
-    updated_params = model.W_hz.data.flatten()
-    # updated_params = updated_params.numpy(force=True)
-    # param_dist = scipy.spatial.distance.cosine(init_params, updated_params)
-    param_dist = (torch.linalg.norm(updated_params - init_params)
-                  / torch.linalg.norm(init_params))
-
-    return loss.item(), param_dist
+    return loss.item()
 
 
 def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,

@@ -111,22 +111,20 @@ def train_test_random_net(params=None, plot_sim=False):
     #     _ = pre_train(inputs, times, model, h_0)
 
     # train model weights
-    max_iter = 100
-    # convergence_reached = False
+    max_iter = 400
+    convergence_reached = False
     loss_per_iter = list()
     for iter_idx in range(max_iter):
         print(f"Iteration {iter_idx + 1}")
-        loss, param_dist = train_bptt(inputs, targets, times, model, loss_fn,
-                                      optimizer, h_0, r_0, u_0)
+        loss = train_bptt(inputs, targets, times, model, loss_fn, optimizer,
+                          h_0, r_0, u_0)
         loss_per_iter.append(loss)
-        # recent_loss_std = np.std(loss_per_iter[-20:])
-        # loss_range = np.max(loss_per_iter) - np.min(loss_per_iter)
-        # if recent_loss_std < 1e-3 * loss_range:
-        #     convergence_reached = True
-        #     break
+        if len(loss_per_iter) >= 10:
+            mean_diff = np.diff(loss_per_iter[-10:]).mean()
+            if np.abs(mean_diff) < 1e-6:
+                convergence_reached = True
+                break
     print(f"Trial training complete!!")
-    # if not convergence_reached:
-    #     print(f"Warning: didn't converge (param_dist={param_dist})!!")
 
     # plot loss across training
     if plot_sim:
