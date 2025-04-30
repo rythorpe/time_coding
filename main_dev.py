@@ -30,7 +30,7 @@ np.random.seed(35107)
 
 
 # define parameter sweep
-n_nets_per_param = 5
+n_nets_per_param = 20
 params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
 param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
                      (n_nets_per_param,))
@@ -109,7 +109,7 @@ def train_test_random_net(param_val, plot_sim=False):
     #     _ = pre_train(inputs, times, model, h_0)
 
     # train model weights
-    max_iter = 500
+    max_iter = 600
     convergence_reached = False
     loss_per_iter = list()
     for iter_idx in range(max_iter):
