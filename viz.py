@@ -108,12 +108,12 @@ def plot_divergence(divergence, delay_times, perturb_mags):
 
 def plot_learning(losses, max_iter=None):
     fig, ax = plt.subplots(1, 1, figsize=(4, 3))
-    iter_idxs = list(range(len(losses)))
+    iter_idxs = np.arange(len(losses))
     ax.semilogy(iter_idxs, losses, 'k')
     ax.grid(axis='y')
     ax.grid(which="minor", color="0.9")
     if max_iter is None:
-        ub_xtick = len(losses) - 1
+        ub_xtick = iter_idxs[-1]
     else:
         ub_xtick = max_iter
     ax.set_xticks([0, ub_xtick])
