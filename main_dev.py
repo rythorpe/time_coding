@@ -10,11 +10,11 @@ import seaborn as sns
 from joblib import Parallel, delayed
 
 import torch
-from torch import nn
+from torch import nn, autograd
 
 from utils import gaussian, get_gaussian_targets
 from models import RNN
-from train import test_and_get_stats, pre_train, train_force, train_bptt
+from train import test_and_get_stats, pre_train, train_bptt
 from viz import plot_divergence, plot_learning
 
 
@@ -30,7 +30,7 @@ np.random.seed(35107)
 
 
 # define parameter sweep
-n_nets_per_param = 20
+n_nets_per_param = 1
 params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
 param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
                      (n_nets_per_param,))
@@ -58,8 +58,10 @@ def train_test_random_net(param_val, plot_sim=False):
                 include_stp=include_stp)
     model.to(device)
 
-    loss_fn = nn.MSELoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-1)
+    mse_fn = nn.MSELoss()
+    # normalize by loss if network output flatlines
+    loss_fn = lambda a, b: mse_fn(a, b) / b.mean()
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
 
     # set parameters
     # simulation parameters
@@ -114,21 +116,19 @@ def train_test_random_net(param_val, plot_sim=False):
     loss_per_iter = list()
     for iter_idx in range(max_iter):
         print(f"Iteration {iter_idx + 1}")
+
         loss = train_bptt(inputs, targets, times, model, loss_fn, optimizer,
                           h_0, r_0, u_0)
         loss_per_iter.append(loss)
         if len(loss_per_iter) >= 10:
             mean_diff = np.diff(loss_per_iter[-10:]).mean()
-            if np.abs(mean_diff) < 1e-6:
+            if np.abs(mean_diff) < 1e-5:
                 convergence_reached = True
                 print('Trial training complete!!!')
                 break
+
     if convergence_reached is False:
         print('Warning: convergence not reached!!!')
-
-    # plot loss across training
-    if plot_sim:
-        fig_learning = plot_learning([stats_0['loss']] + loss_per_iter)
 
     # investigate fitted model
     # plot model output after training
@@ -136,6 +136,18 @@ def train_test_random_net(param_val, plot_sim=False):
                                                  model, loss_fn,
                                                  h_0, r_0, u_0,
                                                  plot=plot_sim)
+    loss_per_iter.append(stats_1['loss'].item())
+    lr_auc = np.sum(np.array(loss_per_iter) - loss_per_iter[-1])
+    half_loss = loss_per_iter[0] - (loss_per_iter[0] + loss_per_iter[-1]) / 2
+    lr_halflife = np.nonzero(np.array(loss_per_iter) < half_loss)[0][0]
+
+    # plot loss across training
+    if plot_sim:
+        fig_learning = plot_learning(loss_per_iter)
+
+        axes = fig_learning.get_axes()
+        axes[0].set_title(f'finnal loss: {loss_per_iter[-1]}\n'
+                          f'LR (AUC):{lr_auc}\n LR (halflife): {lr_halflife}')
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
     n_tests_per_net = 1
@@ -166,7 +178,9 @@ def train_test_random_net(param_val, plot_sim=False):
 
     metrics['divergence'] = divergence
     metrics['response_times'] = times_after_zero
-    metrics['final_loss'] = stats_1['loss']
+    metrics['final_loss'] = loss_per_iter[-1]
+    metrics['lr_auc'] = lr_auc
+    metrics['lr_halflife'] = lr_halflife
     metrics['n_learning_trials'] = iter_idx + 1
     metrics['final_dim'] = stats_1['dimensionality']
     metrics['dim_diff'] = stats_1['dimensionality'] - stats_0['dimensionality']
@@ -178,20 +192,20 @@ def train_test_random_net(param_val, plot_sim=False):
 # res = train_test_random_net(params, plot_sim=True)
 
 # run sweep sequentially
-# for param in param_vals:
-#     train_test_random_net(params)
+for param_val in param_vals:
+    train_test_random_net(param_val, plot_sim=True)
 
-# run sweep in parallel
-res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_val)
-                          for param_val in param_vals)
+# # run sweep in parallel
+# res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_val)
+#                           for param_val in param_vals)
 
-metrics = defaultdict(list)
-for key in res[0].keys():
-    for trial in res:
-        metrics[key].append(trial[key])
+# metrics = defaultdict(list)
+# for key in res[0].keys():
+#     for trial in res:
+#         metrics[key].append(trial[key])
 
-p_rel_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
-divergence = np.mean(metrics['divergence'], axis=0)
-delay_times = metrics['response_times'][0]
-perturb_mags = metrics['perturbation_mag'][0]
-fig_divergence = plot_divergence(divergence, delay_times, perturb_mags)
+# p_rel_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
+# divergence = np.mean(metrics['divergence'], axis=0)
+# delay_times = metrics['response_times'][0]
+# perturb_mags = metrics['perturbation_mag'][0]
+# fig_divergence = plot_divergence(divergence, delay_times, perturb_mags)
