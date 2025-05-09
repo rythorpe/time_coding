@@ -1,6 +1,7 @@
 """Main development script for project."""
 
 from collections import defaultdict
+import os.path as op
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ device = 'cpu'
 # for reproducibility while troubleshooting; numpy is for model sparse conns
 torch.random.manual_seed(95214)
 np.random.seed(35107)
+output_dir = '/projects/ryth7446/time_coding_output'
 
 
 # define parameter sweep
@@ -36,7 +38,7 @@ param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
                      (n_nets_per_param,))
 
 
-def train_test_random_net(param_val, plot_sim=False):
+def train_test_random_net(param_val, plot_sim=False, net_label=None):
     '''Call this func on each parallel process.'''
 
     # sim/sweep params for a given network instantiation
@@ -148,6 +150,9 @@ def train_test_random_net(param_val, plot_sim=False):
         axes = fig_learning.get_axes()
         axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
                           f'LR (AUC):{lr_auc:.5f}\n LR (halflife): {lr_halflife}')
+        fig_learning.tight_layout()
+        fname = 'learning_loss_' + net_label + '.pdf'
+        fig_learning.savefig(op.join(output_dir, fname))
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
     n_tests_per_net = 1
@@ -196,8 +201,8 @@ def train_test_random_net(param_val, plot_sim=False):
 #     train_test_random_net(param_val, plot_sim=True)
 
 # run sweep in parallel
-res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_val)
-                          for param_val in param_vals)
+res = Parallel(n_jobs=32)(delayed(train_test_random_net)(param_val, net_label=p_rel_labels + f'_{param_idx}')
+                          for param_idx, param_val in enumerate(param_vals))
 
 metrics = defaultdict(list)
 for key in res[0].keys():
