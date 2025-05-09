@@ -30,7 +30,7 @@ np.random.seed(35107)
 
 
 # define parameter sweep
-n_nets_per_param = 1
+n_nets_per_param = 20
 params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
 param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
                      (n_nets_per_param,))
@@ -61,7 +61,7 @@ def train_test_random_net(param_val, plot_sim=False):
     mse_fn = nn.MSELoss()
     # normalize by loss if network output flatlines
     loss_fn = lambda a, b: mse_fn(a, b) / b.mean()
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-2)
+    optimizer = torch.optim.SGD(model.parameters(), lr=5e-3)
 
     # set parameters
     # simulation parameters
@@ -122,7 +122,7 @@ def train_test_random_net(param_val, plot_sim=False):
         loss_per_iter.append(loss)
         if len(loss_per_iter) >= 10:
             mean_diff = np.diff(loss_per_iter[-10:]).mean()
-            if np.abs(mean_diff) < 1e-5:
+            if np.abs(mean_diff) < 1e-4:
                 convergence_reached = True
                 print('Trial training complete!!!')
                 break
@@ -146,8 +146,8 @@ def train_test_random_net(param_val, plot_sim=False):
         fig_learning = plot_learning(loss_per_iter)
 
         axes = fig_learning.get_axes()
-        axes[0].set_title(f'finnal loss: {loss_per_iter[-1]}\n'
-                          f'LR (AUC):{lr_auc}\n LR (halflife): {lr_halflife}')
+        axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
+                          f'LR (AUC):{lr_auc:.5f}\n LR (halflife): {lr_halflife}')
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
     n_tests_per_net = 1
@@ -192,20 +192,20 @@ def train_test_random_net(param_val, plot_sim=False):
 # res = train_test_random_net(params, plot_sim=True)
 
 # run sweep sequentially
-for param_val in param_vals:
-    train_test_random_net(param_val, plot_sim=True)
+# for param_val in param_vals:
+#     train_test_random_net(param_val, plot_sim=True)
 
-# # run sweep in parallel
-# res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_val)
-#                           for param_val in param_vals)
+# run sweep in parallel
+res = Parallel(n_jobs=10)(delayed(train_test_random_net)(param_val)
+                          for param_val in param_vals)
 
-# metrics = defaultdict(list)
-# for key in res[0].keys():
-#     for trial in res:
-#         metrics[key].append(trial[key])
+metrics = defaultdict(list)
+for key in res[0].keys():
+    for trial in res:
+        metrics[key].append(trial[key])
 
-# p_rel_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
-# divergence = np.mean(metrics['divergence'], axis=0)
-# delay_times = metrics['response_times'][0]
-# perturb_mags = metrics['perturbation_mag'][0]
-# fig_divergence = plot_divergence(divergence, delay_times, perturb_mags)
+p_rel_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
+divergence = np.mean(metrics['divergence'], axis=0)
+delay_times = metrics['response_times'][0]
+perturb_mags = metrics['perturbation_mag'][0]
+fig_divergence = plot_divergence(divergence, delay_times, perturb_mags)
