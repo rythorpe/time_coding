@@ -218,7 +218,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 #     train_test_random_net(param_val, plot_sim=True)
 
 # run sweep in parallel
-res = Parallel(n_jobs=10)(delayed(train_test_random_net)
+res = Parallel(n_jobs=32)(delayed(train_test_random_net)
                           (param_val, False,
                            param_keys[param_idx] + f'_{param_idx}')
                           for param_idx, param_val in enumerate(param_vals))
@@ -261,3 +261,6 @@ fig_divergence, axes = plt.subplots(1, len(param_labels), sharey=True,
 for stp_type_idx, stp_type in enumerate(param_labels):
     sns.lineplot(data=div_df[div_df['stp_type'] == stp_type], x='time (s)',
                  y='MSE', hue='perturbation', ax=axes[stp_type_idx])
+fig_divergence.tight_layout()
+fname = 'divergence.pdf'
+fig_divergence.savefig(op.join(output_dir, fname))
