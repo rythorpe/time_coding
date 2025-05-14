@@ -129,9 +129,8 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
             # escape training and resample network if loss/gradient becomes
             # unstable
-            if np.isfinite(loss):
-                resample_net = False
-            else:
+            if not np.isfinite(loss):
+                resample_net = True
                 print('Warning: unstable gradient! Resampling network.')
                 break
 
@@ -142,6 +141,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                 mean_diff = np.diff(loss_per_iter[-10:]).mean()
                 if np.abs(mean_diff) < 1e-4:
                     convergence_reached = True
+                    resample_net = False
                     print('Trial training complete!!!')
                     break
 
