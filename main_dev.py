@@ -157,7 +157,10 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
     loss_per_iter.append(stats_1['loss'].item())
     lr_auc = np.mean(np.array(loss_per_iter) - loss_per_iter[-1])
     half_loss = loss_per_iter[0] - (loss_per_iter[0] + loss_per_iter[-1]) / 2
-    lr_halflife = np.nonzero(np.array(loss_per_iter) < half_loss)[0][0]
+    try:
+        lr_halflife = np.nonzero(np.array(loss_per_iter) < half_loss)[0][0]
+    except:
+        lr_halflife = 0.0
 
     # plot loss across training
     if plot_sim:
