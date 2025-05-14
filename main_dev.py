@@ -32,7 +32,7 @@ output_dir = '/projects/ryth7446/time_coding_output'
 
 
 # define parameter sweep
-n_nets_per_param = 10
+n_nets_per_param = 30
 param_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
 params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
 param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
@@ -111,7 +111,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         # plot model output before training
         _, _, stats_0 = test_and_get_stats(inputs, targets, times, model,
                                            loss_fn, h_0, r_0, u_0,
-                                           plot=plot_sim)
+                                           plot=False)
 
         # pre-train
         # max_iter_pretrain = 10
@@ -153,9 +153,9 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
     _, output_sr_1, stats_1 = test_and_get_stats(inputs, targets, times,
                                                  model, loss_fn,
                                                  h_0, r_0, u_0,
-                                                 plot=plot_sim)
+                                                 plot=False)
     loss_per_iter.append(stats_1['loss'].item())
-    lr_auc = np.sum(np.array(loss_per_iter) - loss_per_iter[-1])
+    lr_auc = np.mean(np.array(loss_per_iter) - loss_per_iter[-1])
     half_loss = loss_per_iter[0] - (loss_per_iter[0] + loss_per_iter[-1]) / 2
     lr_halflife = np.nonzero(np.array(loss_per_iter) < half_loss)[0][0]
 
@@ -192,7 +192,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                                                          times, model,
                                                          loss_fn,
                                                          h_0, r_0, u_0,
-                                                         plot=plot_sim)
+                                                         plot=False)
             mse = mse_fn(output_sr_2[:, times_mask, :],
                          output_sr_1[:, times_mask, :])
             mse_vs_perturb[test_idx, perturb_idx, :] = mse.mean(dim=(0, 2))
@@ -219,7 +219,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
 # run sweep in parallel
 res = Parallel(n_jobs=32)(delayed(train_test_random_net)
-                          (param_val, False,
+                          (param_val, True,
                            param_keys[param_idx] + f'_{param_idx}')
                           for param_idx, param_val in enumerate(param_vals))
 
