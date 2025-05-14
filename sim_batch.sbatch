@@ -14,6 +14,8 @@ module purge
 module load anaconda
 conda activate rnn
 
+echo "== Start of Job =="
 python main_dev.py
+echo "== End of Job =="
 
 conda deactivate
