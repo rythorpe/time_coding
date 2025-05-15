@@ -16,7 +16,8 @@ from torch import nn, autograd
 from utils import gaussian, get_gaussian_targets
 from models import RNN
 from train import test_and_get_stats, pre_train, train_bptt
-from viz import plot_divergence, plot_learning
+from viz import (plot_divergence, plot_learning, plot_state_traj,
+                 plot_all_units)
 
 
 # set meta-parameters
@@ -32,7 +33,7 @@ output_dir = '/projects/ryth7446/time_coding_output'
 
 
 # define parameter sweep
-n_nets_per_param = 30
+n_nets_per_param = 10
 param_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
 params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
 param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
@@ -109,9 +110,9 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         u_0 = u_0.to(device)
 
         # plot model output before training
-        _, _, stats_0 = test_and_get_stats(inputs, targets, times, model,
-                                           loss_fn, h_0, r_0, u_0,
-                                           plot=False)
+        _, sim_stats_0 = test_and_get_stats(inputs, targets, times,
+                                            model, loss_fn,
+                                            h_0, r_0, u_0, plot=False)
 
         # pre-train
         # max_iter_pretrain = 10
@@ -150,11 +151,12 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
     # investigate fitted model
     # plot model output after training
-    _, output_sr_1, stats_1 = test_and_get_stats(inputs, targets, times,
-                                                 model, loss_fn,
-                                                 h_0, r_0, u_0,
-                                                 plot=False)
-    loss_per_iter.append(stats_1['loss'].item())
+    state_vars_1, sim_stats_1 = test_and_get_stats(inputs, targets, times,
+                                                   model, loss_fn,
+                                                   h_0, r_0, u_0, plot=False)
+    hidden_sr_1, r_1, u_1, output_sr_1 = state_vars_1
+
+    loss_per_iter.append(sim_stats_1['loss'].item())
     lr_auc = np.mean(np.array(loss_per_iter) - loss_per_iter[-1])
     half_loss = loss_per_iter[0] - (loss_per_iter[0] + loss_per_iter[-1]) / 2
     try:
@@ -162,10 +164,9 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
     except:
         lr_halflife = 0.0
 
-    # plot loss across training
+    # plot results of training
     if plot_sim:
         fig_learning = plot_learning(loss_per_iter)
-
         axes = fig_learning.get_axes()
         axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
                           f'LR (AUC):{lr_auc:.5f}\n'
@@ -173,6 +174,23 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         fig_learning.tight_layout()
         fname = 'learning_loss_' + net_label + '.pdf'
         fig_learning.savefig(op.join(output_dir, fname))
+
+        # select first batch if more than one exists
+        targets_batch = targets.cpu()[0]
+
+        fig_traj = plot_state_traj(h_units=hidden_sr_1[0],
+                                   syn_eff=r_1[0] * u_1[0],
+                                   outputs=output_sr_1[0],
+                                   targets=targets_batch, times=times)
+        fname = 'state_traj_' + net_label + '.pdf'
+        fig_traj.savefig(op.join(output_dir, fname))
+
+        fig_all_units = plot_all_units(h_units=hidden_sr_1[0],
+                                       syn_eff=r_1[0] * u_1[0],
+                                       outputs=output_sr_1[0],
+                                       targets=targets_batch, times=times)
+        fname = 'all_units_' + net_label + '.pdf'
+        fig_all_units.savefig(op.join(output_dir, fname))
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
     n_tests_per_net = 1
@@ -191,11 +209,13 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
             inputs = torch.zeros((n_batches, n_times, n_inputs))
             inputs[:, perturb_win_mask, :] = perturb_mag
 
-            _, output_sr_2, stats_2 = test_and_get_stats(inputs, targets,
+            state_vars_2, sim_stats_2 = test_and_get_stats(inputs, targets,
                                                          times, model,
                                                          loss_fn,
                                                          h_0, r_0, u_0,
                                                          plot=False)
+            _, _, _, output_sr_2 = state_vars_2
+
             mse = mse_fn(output_sr_2[:, times_mask, :],
                          output_sr_1[:, times_mask, :])
             mse_vs_perturb[test_idx, perturb_idx, :] = mse.mean(dim=(0, 2))
@@ -207,8 +227,9 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
     metrics['lr_auc'] = lr_auc
     metrics['lr_halflife'] = lr_halflife
     metrics['n_learning_trials'] = iter_idx + 1
-    metrics['final_dim'] = stats_1['dimensionality']
-    metrics['dim_diff'] = stats_1['dimensionality'] - stats_0['dimensionality']
+    metrics['final_dim'] = sim_stats_1['dimensionality']
+    metrics['dim_diff'] = (sim_stats_1['dimensionality'] -
+                           sim_stats_0['dimensionality'])
 
     return metrics
 
