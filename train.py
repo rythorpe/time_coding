@@ -228,13 +228,15 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
 
     # select first batch if more than one exists
     hidden_batch = torch.tanh(h_t).cpu()[0]
+    syn_eff_batch = r_t.cpu()[0] * u_t.cpu()[0]
     outputs_batch = z_t.cpu()[0]
     targets_batch = targets.cpu()[0]
 
     # visualize network's response
     if plot:
         fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
-                              targets=targets_batch, times=times)
+                              syn_eff=syn_eff_batch, targets=targets_batch,
+                              times=times)
         fig.show()
 
     # calculate metrics-of-interest
