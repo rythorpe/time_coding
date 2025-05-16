@@ -96,7 +96,7 @@ class RNN(nn.Module):
             else:
                 r_t_minus_1 = r_0[batch_idx, :]
             if u_0 is None or self.include_stp is False:
-                u_t_minus_1 = torch.ones(self.n_hidden)
+                u_t_minus_1 = self.p_rel
             else:
                 u_t_minus_1 = u_0[batch_idx, :]
             h_t_minus_1 = h_0[batch_idx, :]
@@ -117,8 +117,8 @@ class RNN(nn.Module):
                     # drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
                     #         - self.beta * r_t_minus_1 * h_transfer)
                             # + self.beta * self.p_rel / 2)
-                    r_t = hard_tanh(r_t_minus_1 + drdt * dt)  # impose bounds
-                    # r_t = r_t_minus_1 + drdt * dt
+                    # r_t = hard_tanh(r_t_minus_1 + drdt * dt)  # impose bounds
+                    r_t = r_t_minus_1 + drdt * dt
                 r_t_all[batch_idx, t_idx, :] = r_t.clone()
 
                 # pre-syn STP: augmentation of utilization (facilitation)
@@ -128,8 +128,8 @@ class RNN(nn.Module):
                 else:
                     dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
                             + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
-                    u_t = hard_tanh(u_t_minus_1 + dudt * dt)  # impose bounds
-                    # u_t = u_t_minus_1 + dudt * dt
+                    # u_t = hard_tanh(u_t_minus_1 + dudt * dt)  # impose bounds
+                    u_t = u_t_minus_1 + dudt * dt
                 u_t_all[batch_idx, t_idx, :] = u_t.clone()
 
                 # calculate total transfer weight
