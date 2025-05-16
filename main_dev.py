@@ -124,7 +124,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         convergence_reached = False
         loss_per_iter = list()
         for iter_idx in range(max_iter):
-            print(f"Iteration {iter_idx + 1}")
+            # print(f"Iteration {iter_idx + 1}")
             loss = train_bptt(inputs, targets, times, model, loss_fn,
                               optimizer, h_0, r_0, u_0)
 
@@ -143,7 +143,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                 if np.abs(mean_diff) < 1e-4:
                     convergence_reached = True
                     resample_net = False
-                    print('Trial training complete!!!')
+                    print(f'Trial training complete for {net_label}')
                     break
 
     if convergence_reached is False:
