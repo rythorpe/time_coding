@@ -58,7 +58,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
     metrics['perturbation_mag'] = perturbation_mag
 
     # instantiate model, loss function, and optimizer
-    n_inputs, n_hidden, n_outputs = 1, 300, 10
+    n_inputs, n_hidden, n_outputs = 1, 500, 10
     resample_net = True
     while resample_net is True:
         model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
