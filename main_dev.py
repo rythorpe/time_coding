@@ -159,10 +159,11 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
     loss_per_iter.append(sim_stats_1['loss'].item())
     lr_auc = np.mean(np.array(loss_per_iter) - loss_per_iter[-1])
     half_loss = loss_per_iter[0] - (loss_per_iter[0] + loss_per_iter[-1]) / 2
-    try:
-        lr_halflife = np.nonzero(np.array(loss_per_iter) < half_loss)[0][0]
-    except:
-        lr_halflife = 0.0
+    lr_halflife_idxs = np.nonzero(np.array(loss_per_iter) < half_loss)[0]
+    if len(lr_halflife_idxs) > 0:
+        lr_halflife = lr_halflife_idxs[0]
+    else:
+        lr_halflife = 0
 
     # plot results of training
     if plot_sim:
@@ -210,10 +211,10 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
             inputs[:, perturb_win_mask, :] = perturb_mag
 
             state_vars_2, sim_stats_2 = test_and_get_stats(inputs, targets,
-                                                         times, model,
-                                                         loss_fn,
-                                                         h_0, r_0, u_0,
-                                                         plot=False)
+                                                           times, model,
+                                                           loss_fn,
+                                                           h_0, r_0, u_0,
+                                                           plot=False)
             _, _, _, output_sr_2 = state_vars_2
 
             mse = mse_fn(output_sr_2[:, times_mask, :],
