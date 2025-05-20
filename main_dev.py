@@ -33,7 +33,7 @@ output_dir = '/projects/ryth7446/time_coding_output'
 
 
 # define parameter sweep
-n_nets_per_param = 10
+n_nets_per_param = 30
 param_labels = ['high-hetero', 'low-hetero', 'homo', 'none']
 params = {'stp_heterogeneity': [(0.1, 0.9), (0.4, 0.6), (0.5, 0.5), 'none']}
 param_vals = np.tile(np.array(params['stp_heterogeneity'], dtype=object),
@@ -69,7 +69,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         mse_fn = nn.MSELoss()
         # normalize by loss if network output flatlines
         loss_fn = lambda a, b: mse_fn(a, b) / b.mean()
-        optimizer = torch.optim.SGD(model.parameters(), lr=5e-3)
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
         # set parameters
         # simulation parameters
@@ -120,7 +120,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         #     _ = pre_train(inputs, times, model, h_0)
 
         # train model weights
-        max_iter = 600
+        max_iter = 300
         convergence_reached = False
         loss_per_iter = list()
         for iter_idx in range(max_iter):
@@ -142,9 +142,10 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                 mean_diff = np.diff(loss_per_iter[-10:]).mean()
                 if np.abs(mean_diff) < 1e-4:
                     convergence_reached = True
-                    resample_net = False
-                    print(f'Trial training complete for {net_label}')
-                    break
+                    # resample_net = False
+                    # print(f'Trial training complete for {net_label}')
+                    # break
+        resample_net = False
 
     if convergence_reached is False:
         print('Warning: convergence not reached!!!')
@@ -224,7 +225,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
     metrics['divergence'] = divergence
     metrics['response_times'] = times_after_zero
-    metrics['final_loss'] = loss_per_iter[-1]
+    metrics['losses'] = loss_per_iter
     metrics['lr_auc'] = lr_auc
     metrics['lr_halflife'] = lr_halflife
     metrics['n_learning_trials'] = iter_idx + 1

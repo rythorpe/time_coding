@@ -87,6 +87,7 @@ class RNN(nn.Module):
         dhdhtminus1_all = torch.zeros(batch_size, seq_len, self.n_hidden)
 
         hard_tanh = torch.nn.Hardtanh(min_val=0.0, max_val=1.0)
+        relu = torch.nn.ReLU()
 
         # NB: doesn't work on CUDA; due to FORCE training, h_0 is updated
         # regularly in time and therefore lives on the CPU
@@ -119,8 +120,8 @@ class RNN(nn.Module):
                     # drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
                     #         - self.beta * r_t_minus_1 * h_transfer)
                             # + self.beta * self.p_rel / 2)
-                # r_t = hard_tanh(r_t_minus_1 + drdt * dt)  # impose bounds
-                r_t = r_t_minus_1 + drdt * dt
+                r_t = hard_tanh(r_t_minus_1 + drdt * dt)  # impose bounds
+                # r_t = r_t_minus_1 + drdt * dt
                 r_t_all[batch_idx, t_idx, :] = r_t.clone()
 
                 # pre-syn STP: augmentation of utilization (facilitation)
@@ -130,8 +131,8 @@ class RNN(nn.Module):
                 else:
                     dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
                             + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
-                # u_t = hard_tanh(u_t_minus_1 + dudt * dt)  # impose bounds
-                u_t = u_t_minus_1 + dudt * dt
+                u_t = hard_tanh(u_t_minus_1 + dudt * dt)  # impose bounds
+                # u_t = u_t_minus_1 + dudt * dt
                 u_t_all[batch_idx, t_idx, :] = u_t.clone()
 
                 # calculate total transfer weight
