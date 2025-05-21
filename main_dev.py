@@ -218,7 +218,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
             _, _, _, output_sr_2 = state_vars_2
 
             mse = mse_fn(output_sr_2[:, times_mask, :],
-                         output_sr_1[:, times_mask, :])
+                         targets[:, times_mask, :])
             mse_vs_perturb[test_idx, perturb_idx, :] = mse.mean(dim=(0, 2))
     divergence = mse_vs_perturb.mean(axis=0)  # avg over rand input conns
 
