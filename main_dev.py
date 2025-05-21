@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 import os.path as op
+from cycler import cycler
 
 import numpy as np
 import pandas as pd
@@ -29,6 +30,7 @@ device = 'cpu'
 # for reproducibility while troubleshooting; numpy is for model sparse conns
 torch.random.manual_seed(95214)
 np.random.seed(35107)
+# output_dir = '/home/ryan/Desktop'
 output_dir = '/projects/ryth7446/time_coding_output'
 
 
@@ -120,7 +122,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         #     _ = pre_train(inputs, times, model, h_0)
 
         # train model weights
-        max_iter = 400
+        max_iter = 200
         convergence_reached = False
         resample_net = False
         loss_per_iter = list()
@@ -167,14 +169,14 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
     # plot results of training
     if plot_sim:
-        # fig_learning = plot_learning(loss_per_iter)
-        # axes = fig_learning.get_axes()
-        # axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
-        #                   f'LR (AUC):{lr_auc:.5f}\n'
-        #                   f'LR (halflife): {lr_halflife}')
-        # fig_learning.tight_layout()
-        # fname = 'learning_loss_' + net_label + '.pdf'
-        # fig_learning.savefig(op.join(output_dir, fname))
+        fig_learning = plot_learning(loss_per_iter)
+        axes = fig_learning.get_axes()
+        axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
+                          f'LR (AUC):{lr_auc:.5f}\n'
+                          f'LR (halflife): {lr_halflife}')
+        fig_learning.tight_layout()
+        fname = 'learning_loss_' + net_label + '.pdf'
+        fig_learning.savefig(op.join(output_dir, fname))
 
         # select first batch if more than one exists
         targets_batch = targets.cpu()[0]
@@ -243,8 +245,8 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 #     train_test_random_net(param_val, plot_sim=True)
 
 # run sweep in parallel
-res = Parallel(n_jobs=24)(delayed(train_test_random_net)
-                          (param_val, True,
+res = Parallel(n_jobs=32)(delayed(train_test_random_net)
+                          (param_val, False,
                            param_keys[param_idx] + f'_{param_idx}')
                           for param_idx, param_val in enumerate(param_vals))
 
@@ -275,6 +277,7 @@ for key in res[0].keys():
 # plot_divergence(divergence, delay_times, perturb_mags, ax=ax)
 # fig_divergence.tight_layout()
 
+# plot avg divergence over time for each STP condition w/ error bars
 n_times = len(response_times[0])
 data = np.array([np.ravel(divergences), np.ravel(response_times),
                  np.repeat(perturbation_mags, n_times),
@@ -289,3 +292,24 @@ for stp_type_idx, stp_type in enumerate(param_labels):
 fig_divergence.tight_layout()
 fname = 'divergence.pdf'
 fig_divergence.savefig(op.join(output_dir, fname))
+
+# plot avg learning curve across STP conditions on one set of axes
+cm_hidden = sns.color_palette('colorblind')
+fig, ax = plt.subplots(1, 1, figsize=(4, 3))
+ax.set_prop_cycle(cycler('color', cm_hidden))
+loss_groupby_stp = defaultdict(list)
+for stp_type, losses in zip(learning_metrics['stp'], learning_metrics['losses']):
+    loss_groupby_stp[stp_type].append(losses)
+
+for idx, (key, val) in enumerate(loss_groupby_stp.items()):
+    losses_avg = np.mean(val, axis=0)
+    iter_idxs = np.arange(len(losses_avg))
+    ax.semilogy(iter_idxs, losses_avg, lw=2, label=key)
+ax.grid(axis='y')
+ax.grid(which="minor", color="0.9")
+ub_xtick = iter_idxs[-1]
+ax.set_xticks([0, ub_xtick])
+ax.set_xlabel('iteration')
+ax.set_ylabel('normalized MSE')
+ax.legend()
+fig.tight_layout()
