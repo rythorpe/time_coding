@@ -120,8 +120,9 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         #     _ = pre_train(inputs, times, model, h_0)
 
         # train model weights
-        max_iter = 300
+        max_iter = 400
         convergence_reached = False
+        resample_net = False
         loss_per_iter = list()
         for iter_idx in range(max_iter):
             # print(f"Iteration {iter_idx + 1}")
@@ -142,10 +143,8 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                 mean_diff = np.diff(loss_per_iter[-10:]).mean()
                 if np.abs(mean_diff) < 1e-4:
                     convergence_reached = True
-                    # resample_net = False
                     # print(f'Trial training complete for {net_label}')
                     # break
-        resample_net = False
 
     if convergence_reached is False:
         print('Warning: convergence not reached!!!')
