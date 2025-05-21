@@ -168,14 +168,14 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
     # plot results of training
     if plot_sim:
-        fig_learning = plot_learning(loss_per_iter)
-        axes = fig_learning.get_axes()
-        axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
-                          f'LR (AUC):{lr_auc:.5f}\n'
-                          f'LR (halflife): {lr_halflife}')
-        fig_learning.tight_layout()
-        fname = 'learning_loss_' + net_label + '.pdf'
-        fig_learning.savefig(op.join(output_dir, fname))
+        # fig_learning = plot_learning(loss_per_iter)
+        # axes = fig_learning.get_axes()
+        # axes[0].set_title(f'final loss: {loss_per_iter[-1]:.5f}\n'
+        #                   f'LR (AUC):{lr_auc:.5f}\n'
+        #                   f'LR (halflife): {lr_halflife}')
+        # fig_learning.tight_layout()
+        # fname = 'learning_loss_' + net_label + '.pdf'
+        # fig_learning.savefig(op.join(output_dir, fname))
 
         # select first batch if more than one exists
         targets_batch = targets.cpu()[0]
@@ -244,7 +244,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 #     train_test_random_net(param_val, plot_sim=True)
 
 # run sweep in parallel
-res = Parallel(n_jobs=32)(delayed(train_test_random_net)
+res = Parallel(n_jobs=24)(delayed(train_test_random_net)
                           (param_val, True,
                            param_keys[param_idx] + f'_{param_idx}')
                           for param_idx, param_val in enumerate(param_vals))
