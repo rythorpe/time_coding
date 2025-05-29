@@ -122,7 +122,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
         #     _ = pre_train(inputs, times, model, h_0)
 
         # train model weights
-        max_iter = 200
+        max_iter = 400
         convergence_reached = False
         resample_net = False
         loss_per_iter = list()
@@ -295,8 +295,8 @@ fig_divergence.savefig(op.join(output_dir, fname))
 
 # plot avg learning curve across STP conditions on one set of axes
 cm_hidden = sns.color_palette('colorblind')
-fig, ax = plt.subplots(1, 1, figsize=(4, 3))
-ax.set_prop_cycle(cycler('color', cm_hidden))
+fig_learning, axes = plt.subplots(1, 1, figsize=(4, 3))
+axes.set_prop_cycle(cycler('color', cm_hidden))
 loss_groupby_stp = defaultdict(list)
 for stp_type, losses in zip(learning_metrics['stp'], learning_metrics['losses']):
     loss_groupby_stp[stp_type].append(losses)
@@ -304,12 +304,14 @@ for stp_type, losses in zip(learning_metrics['stp'], learning_metrics['losses'])
 for idx, (key, val) in enumerate(loss_groupby_stp.items()):
     losses_avg = np.mean(val, axis=0)
     iter_idxs = np.arange(len(losses_avg))
-    ax.semilogy(iter_idxs, losses_avg, lw=2, label=key)
-ax.grid(axis='y')
-ax.grid(which="minor", color="0.9")
+    axes.semilogy(iter_idxs, losses_avg, lw=2, label=key)
+axes.grid(axis='y')
+axes.grid(which="minor", color="0.9")
 ub_xtick = iter_idxs[-1]
-ax.set_xticks([0, ub_xtick])
-ax.set_xlabel('iteration')
-ax.set_ylabel('normalized MSE')
-ax.legend()
-fig.tight_layout()
+axes.set_xticks([0, ub_xtick])
+axes.set_xlabel('iteration')
+axes.set_ylabel('normalized MSE')
+axes.legend()
+fig_learning.tight_layout()
+fname = 'learning.pdf'
+fig_learning.savefig(op.join(output_dir, fname))
