@@ -246,7 +246,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
 
 # run sweep in parallel
 res = Parallel(n_jobs=32)(delayed(train_test_random_net)
-                          (param_val, False,
+                          (param_val, True,
                            param_keys[param_idx] + f'_{param_idx}')
                           for param_idx, param_val in enumerate(param_vals))
 
