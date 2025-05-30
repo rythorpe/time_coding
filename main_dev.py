@@ -175,7 +175,7 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                           f'LR (AUC):{lr_auc:.5f}\n'
                           f'LR (halflife): {lr_halflife}')
         fig_learning.tight_layout()
-        fname = 'learning_loss_' + net_label + '.pdf'
+        fname = 'learning_loss_' + net_label + '.png'
         fig_learning.savefig(op.join(output_dir, fname))
 
         # select first batch if more than one exists
@@ -185,14 +185,14 @@ def train_test_random_net(param_val, plot_sim=False, net_label=None):
                                    syn_eff=r_1[0] * u_1[0],
                                    outputs=output_sr_1[0],
                                    targets=targets_batch, times=times)
-        fname = 'state_traj_' + net_label + '.pdf'
+        fname = 'state_traj_' + net_label + '.png'
         fig_traj.savefig(op.join(output_dir, fname))
 
         fig_all_units = plot_all_units(h_units=hidden_sr_1[0],
                                        syn_eff=r_1[0] * u_1[0],
                                        outputs=output_sr_1[0],
                                        targets=targets_batch, times=times)
-        fname = 'all_units_' + net_label + '.pdf'
+        fname = 'all_units_' + net_label + '.png'
         fig_all_units.savefig(op.join(output_dir, fname))
 
     # temporal stability: MSE as a function of latency with t<0 perturbations
@@ -290,7 +290,7 @@ for stp_type_idx, stp_type in enumerate(param_labels):
     sns.lineplot(data=div_df[div_df['stp_type'] == stp_type], x='time (s)',
                  y='MSE', hue='perturbation', ax=axes[stp_type_idx])
 fig_divergence.tight_layout()
-fname = 'divergence.pdf'
+fname = 'divergence.png'
 fig_divergence.savefig(op.join(output_dir, fname))
 
 # plot avg learning curve across STP conditions on one set of axes
@@ -313,5 +313,5 @@ axes.set_xlabel('iteration')
 axes.set_ylabel('normalized MSE')
 axes.legend()
 fig_learning.tight_layout()
-fname = 'learning.pdf'
+fname = 'learning.png'
 fig_learning.savefig(op.join(output_dir, fname))
