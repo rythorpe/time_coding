@@ -75,7 +75,7 @@ class RNN(nn.Module):
 
     def transfer_func(self, h, gain=8.0, thresh=0.5):
         '''Activation function for single-unit activity in hidden layer.
-        
+
         Maximum slope occurs at thresh and takes a value of gain / 4.
         '''
         return torch.sigmoid(gain * (h - thresh))
@@ -88,6 +88,7 @@ class RNN(nn.Module):
         batch_size, seq_len, _ = x.size()
 
         # create matrices for storing time-dependent state variables
+        ext_in_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         r_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         u_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         h_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
@@ -96,7 +97,7 @@ class RNN(nn.Module):
         # NB: doesn't work on CUDA; due to FORCE training, h_0 is updated
         # regularly in time and therefore lives on the CPU
         for batch_idx in range(batch_size):
-            noise = torch.zeros(self.n_hidden)
+            n_t_minus_1 = torch.zeros(self.n_hidden)
 
             # each batch can theoretically have distinct initial conditions,
             # injected noise, or inputs
@@ -118,9 +119,11 @@ class RNN(nn.Module):
             for t_idx in range(0, seq_len):
                 # noise
                 noise_scaling_fctr = np.sqrt(dt) / dt
-                dndt = (-noise / noise_tau
+                dndt = (-n_t_minus_1 / noise_tau
                         + noise_std * noise_scaling_fctr * torch.randn(self.n_hidden))
-                noise = noise + dndt * dt
+                n_t = n_t_minus_1 + dndt * dt
+                ext_in = x[batch_idx, t_idx, :] @ self.W_ih.T + n_t_minus_1
+                ext_in_all[batch_idx, t_idx, :] = ext_in.clone()
 
                 # pre-syn STP: depletion of resources (depression)
                 if r_0 is None or include_stp is False:
@@ -129,9 +132,6 @@ class RNN(nn.Module):
                 else:
                     drdt = ((1 - r_t_minus_1) / self.tau_depr
                             - self.beta * u_t_minus_1 * r_t_minus_1 * h_transfer)
-                    # drdt = ((self.p_rel - r_t_minus_1) / self.tau_depr
-                    #         - self.beta * r_t_minus_1 * h_transfer)
-                            # + self.beta * self.p_rel / 2)
                 r_t = r_t_minus_1 + drdt * dt
                 r_t_all[batch_idx, t_idx, :] = r_t.clone()
 
@@ -152,9 +152,8 @@ class RNN(nn.Module):
 
                 # post-synaptic integration
                 dhdt = (-h_t_minus_1
-                        + x[batch_idx, t_idx, :] @ self.W_ih.T
                         + h_transfer @ effective_weight.T
-                        + noise) / self.tau
+                        + ext_in) / self.tau
                 h_t = h_t_minus_1 + dhdt * dt
                 h_t_all[batch_idx, t_idx, :] = h_t.clone()
 
@@ -164,9 +163,11 @@ class RNN(nn.Module):
                 h_transfer = self.transfer_func(h_t,
                                                 gain=self.activation_gain,
                                                 thresh=self.activation_thresh)
-                z_t_all[batch_idx, t_idx, :] = h_transfer @ self.W_hz.T + self.offset_hz
+                z_t_all[batch_idx, t_idx, :] = (h_transfer @ self.W_hz.T
+                                                + self.offset_hz)
 
                 # save for next time step
+                n_t_minus_1 = n_t
                 r_t_minus_1 = r_t
                 u_t_minus_1 = u_t
                 h_t_minus_1 = h_t
@@ -174,4 +175,4 @@ class RNN(nn.Module):
         if return_deriv is True:
             return dhdt, drdt, dudt
         else:
-            return h_t_all, r_t_all, u_t_all, z_t_all
+            return ext_in_all, h_t_all, r_t_all, u_t_all, z_t_all

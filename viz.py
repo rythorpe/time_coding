@@ -100,7 +100,7 @@ def plot_learning(losses, max_iter=None):
     return fig
 
 
-def plot_state_traj(h_units, syn_eff, outputs, targets, times):
+def plot_state_traj(ext_in, h_units, syn_eff, outputs, targets, times):
     # NB: assumes a single batch/trial
     n_times, n_hidden = h_units.shape
     n_outputs = outputs.shape[1]
@@ -112,36 +112,46 @@ def plot_state_traj(h_units, syn_eff, outputs, targets, times):
     if n_hidden < 5:
         n_hidden_plot = n_hidden
 
-    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 6))
+    fig, axes = plt.subplots(4, 1, sharex=True, figsize=(6, 6))
 
-    # recurrent unit trajectories
+    # create colormaps
     cm_hidden = sns.color_palette('colorblind')
+    cm_output = plt.cm.viridis_r(np.linspace(0, 1, n_outputs))
+
+    # injected current
     axes[0].set_prop_cycle(cycler('color', cm_hidden))
-    axes[0].plot(times, h_units[:, :n_hidden_plot])
+    axes[0].plot(times, ext_in[:, :n_hidden_plot])
     axes[0].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[0].set_ylabel('normalized\nfiring rate (a.u.)')
-    axes[0].set_yticks([0, 1])
+    axes[0].set_ylabel('injected\ncurrent (a.u.)')
+    # axes[0].set_yticks([0, 1])
 
-    # synaptic utilization (from STP)
+    # recurrent unit trajectories
     axes[1].set_prop_cycle(cycler('color', cm_hidden))
-    axes[1].plot(times, syn_eff[:, :n_hidden_plot])
+    axes[1].plot(times, h_units[:, :n_hidden_plot])
     axes[1].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[1].set_ylabel('synaptic\nefficacy')
+    axes[1].set_ylabel('normalized\nfiring rate (a.u.)')
     axes[1].set_yticks([0, 1])
 
-    # outputs
-    cm_output = plt.cm.viridis_r(np.linspace(0, 1, n_outputs))
-    axes[2].set_prop_cycle(cycler('color', cm_output))
-    axes[2].plot(times_after_zero, targets[time_mask, :], lw=2, ls=':')
-    axes[2].plot(times, outputs, lw=2)
-    axes[2].add_patch(Rectangle([-0.05, -1], 0.05, 2.0, ec='none', fc='k',
+    # synaptic utilization (from STP)
+    axes[2].set_prop_cycle(cycler('color', cm_hidden))
+    axes[2].plot(times, syn_eff[:, :n_hidden_plot])
+    axes[2].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[2].set_xticks(np.arange(0, 1.2, 0.2))
-    axes[2].set_xlabel('time (s)')
-    axes[2].set_ylabel('normalized\nfiring rate (a.u.)')
-    axes[2].set_yticks([-1, 0, 1])
+    axes[2].set_ylabel('synaptic\nefficacy')
+    axes[2].set_yticks([0, 1])
+
+    # outputs
+    axes[3].set_prop_cycle(cycler('color', cm_output))
+    axes[3].plot(times_after_zero, targets[time_mask, :], lw=2, ls=':')
+    axes[3].plot(times, outputs, lw=2)
+    axes[3].add_patch(Rectangle([-0.05, -1], 0.05, 2.0, ec='none', fc='k',
+                                alpha=0.2, zorder=100))
+    axes[3].set_xticks(np.arange(0, 1.2, 0.2))
+    axes[3].set_xlabel('time (s)')
+    axes[3].set_ylabel('normalized\nfiring rate (a.u.)')
+    axes[3].set_yticks([-1, 0, 1])
 
     fig.tight_layout()
 
