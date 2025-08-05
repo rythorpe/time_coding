@@ -12,7 +12,7 @@ import seaborn as sns
 from joblib import Parallel, delayed
 
 import torch
-from torch import nn, autograd
+from torch import nn
 
 from utils import gaussian, get_gaussian_targets
 from models import RNN
