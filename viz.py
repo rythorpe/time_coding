@@ -108,8 +108,8 @@ def plot_state_traj(h_units, syn_eff, outputs, targets, times):
     time_mask = times > 0
     times_after_zero = times[time_mask]
 
-    n_hidden_plot = 10  # number of hidden units to plot
-    if n_hidden < 10:
+    n_hidden_plot = 5  # number of hidden units to plot
+    if n_hidden < 5:
         n_hidden_plot = n_hidden
 
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(6, 6))
@@ -118,10 +118,10 @@ def plot_state_traj(h_units, syn_eff, outputs, targets, times):
     cm_hidden = sns.color_palette('colorblind')
     axes[0].set_prop_cycle(cycler('color', cm_hidden))
     axes[0].plot(times, h_units[:, :n_hidden_plot])
-    axes[0].add_patch(Rectangle([-0.05, -1], 0.05, 2.0, ec='none', fc='k',
+    axes[0].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
                                 alpha=0.2, zorder=100))
     axes[0].set_ylabel('normalized\nfiring rate (a.u.)')
-    axes[0].set_yticks([-1, 0, 1])
+    axes[0].set_yticks([0, 1])
 
     # synaptic utilization (from STP)
     axes[1].set_prop_cycle(cycler('color', cm_hidden))
