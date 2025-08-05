@@ -83,8 +83,7 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
     with torch.no_grad():
         # Compute prediction error
         outputs, h_t = model(inputs, h_0=h_0, dt=dt)
-        transfer_func = torch.nn.Tanh()
-        h_transfer = transfer_func(h_t)
+        h_transfer = model.transfer_func(h_t)
 
     # 1st (and only) batch, 1st third of recurrent trajectories
     h_transfer_subset = np.array(h_transfer[0, :, :n_hidden // 3])

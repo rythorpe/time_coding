@@ -154,15 +154,19 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0):
-    dt = times[1] - times[0]
+               h_0, r_0, u_0, dt, include_stp, noise_tau=0.01, noise_std=0.0):
     model.train()
 
-    h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+    h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
+                               include_stp=include_stp, noise_tau=noise_tau,
+                               noise_std=noise_std)
     loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
     loss.backward()
 
     optimizer.step()
+    # scale W_hh sparsely and reset presyn_scaling vector
+    # model.W_hh[:, :50] *= model.presyn_scaling.detach()[:50]
+    # torch.nn.init.ones_(model.presyn_scaling)
     optimizer.zero_grad()
 
     return loss.item()
@@ -178,7 +182,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         # Compute prediction error
         h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, dt=dt)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-        h_transfer = torch.tanh(h_t)
+        h_transfer = model.transfer_func(h_t)
 
         # assuming batch size of 1, select first and only batch
         h_transfer = h_transfer.cpu()[0, times > 0, :]
@@ -200,7 +204,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
         print(f"Min. loss: {loss.item():>7f}")
 
     # select first batch if more than one exists
-    hidden_batch = torch.tanh(h_t).cpu()[0]
+    hidden_batch = model.transfer_func(h_t).cpu()[0]
     outputs_batch = z_t.cpu()[0]
     targets_batch = targets.cpu()[0]
 
@@ -212,13 +216,15 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       plot=True):
+                       include_stp, noise_tau=0.01, noise_std=0.0, plot=True):
     dt = times[1] - times[0]
     model.eval()
 
     with torch.no_grad():
         # simulate and calculate total output error
-        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
+                                   include_stp=include_stp,
+                                   noise_tau=noise_tau, noise_std=noise_std)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
 
     try:
@@ -227,7 +233,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         Warning("Test loss isn't a scalar!")
 
     # select first batch if more than one exists
-    hidden_batch = torch.tanh(h_t).cpu()[0]
+    hidden_batch = model.transfer_func(h_t).cpu()[0]
     syn_eff_batch = r_t.cpu()[0] * u_t.cpu()[0]
     outputs_batch = z_t.cpu()[0]
     targets_batch = targets.cpu()[0]
@@ -241,6 +247,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
 
     # calculate metrics-of-interest
     n_dim = est_dimensionality(hidden_batch)
-    stats = dict(loss=loss, dimensionality=n_dim)
+    psc_std = hidden_batch.mean()
+    stats = dict(loss=loss, dimensionality=n_dim, psc_std=psc_std)
 
-    return (torch.tanh(h_t).cpu(), r_t.cpu(), u_t.cpu(), z_t.cpu()), stats
+    return (model.transfer_func(h_t).cpu(), r_t.cpu(), u_t.cpu(), z_t.cpu()), stats
