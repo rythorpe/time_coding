@@ -235,7 +235,8 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         Warning("Test loss isn't a scalar!")
 
     # select first batch if more than one exists
-    ext_in_batch = ext_in.cpu()[0]
+    # ext_in_batch = ext_in.cpu()[0]
+    noise_batch = ext_in.cpu()[0] - inputs.cpu()[0]
     hidden_batch = model.transfer_func(h_t).cpu()[0]
     syn_eff_batch = r_t.cpu()[0] * u_t.cpu()[0]
     outputs_batch = z_t.cpu()[0]
@@ -243,7 +244,8 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
 
     # visualize network's response
     if plot:
-        fig = plot_state_traj(ext_in=ext_in_batch, h_units=hidden_batch,
+        # for not, plot injected noise over time as perturbation
+        fig = plot_state_traj(perturb=noise_batch, h_units=hidden_batch,
                               syn_eff=syn_eff_batch, outputs=outputs_batch,
                               targets=targets_batch, times=times)
         fig.show()

@@ -100,7 +100,7 @@ def plot_learning(losses, max_iter=None):
     return fig
 
 
-def plot_state_traj(ext_in, h_units, syn_eff, outputs, targets, times):
+def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     # NB: assumes a single batch/trial
     n_times, n_hidden = h_units.shape
     n_outputs = outputs.shape[1]
@@ -120,8 +120,12 @@ def plot_state_traj(ext_in, h_units, syn_eff, outputs, targets, times):
 
     # injected current
     axes[0].set_prop_cycle(cycler('color', cm_hidden))
-    axes[0].plot(times, ext_in[:, :n_hidden_plot])
-    axes[0].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
+    axes[0].plot(times, perturb[:, :n_hidden_plot])
+    perturb_lb = perturb[:, :n_hidden_plot].min()
+    perturb_ub = perturb[:, :n_hidden_plot].max()
+    rec_height = perturb_ub - perturb_lb
+    axes[0].add_patch(Rectangle([-0.05, perturb_lb], 0.05, rec_height,
+                                ec='none', fc='k',
                                 alpha=0.2, zorder=100))
     axes[0].set_ylabel('injected\ncurrent (a.u.)')
     # axes[0].set_yticks([0, 1])
@@ -146,7 +150,11 @@ def plot_state_traj(ext_in, h_units, syn_eff, outputs, targets, times):
     axes[3].set_prop_cycle(cycler('color', cm_output))
     axes[3].plot(times_after_zero, targets[time_mask, :], lw=2, ls=':')
     axes[3].plot(times, outputs, lw=2)
-    axes[3].add_patch(Rectangle([-0.05, -1], 0.05, 2.0, ec='none', fc='k',
+    output_lb = outputs.min()
+    output_ub = outputs.max()
+    rec_height = output_ub - output_lb
+    axes[3].add_patch(Rectangle([-0.05, output_lb], 0.05, rec_height,
+                                ec='none', fc='k',
                                 alpha=0.2, zorder=100))
     axes[3].set_xticks(np.arange(0, 1.2, 0.2))
     axes[3].set_xlabel('time (s)')
@@ -169,7 +177,6 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
     fig, axes = plt.subplots(1, 3, sharex=True, figsize=(8, 2.5))
 
     # recurrent unit trajectories
-    cm_hidden = sns.color_palette('colorblind')
     hid_res_map = axes[0].pcolormesh(times, range(1, n_hidden + 1),
                                      h_units.T, cmap='RdGy',
                                      vmin=-1, vmax=1)
