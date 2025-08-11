@@ -178,8 +178,8 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
 
     # recurrent unit trajectories
     hid_res_map = axes[0].pcolormesh(times, range(1, n_hidden + 1),
-                                     h_units.T, cmap='RdGy',
-                                     vmin=-1, vmax=1)
+                                     h_units.T, cmap='Greys',
+                                     vmin=0, vmax=1)
     axes[0].set_title('hidden unit\nresponses')
     axes[0].set_ylabel('unit #')
     axes[0].set_yticks([1, n_hidden])
@@ -202,8 +202,8 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
                                      vmin=-1, vmax=1)
     peak_idxs = targets.argmax(dim=0)
     peak_times = times[peak_idxs]
-    axes[2].scatter(peak_times, range(1, n_outputs + 1), marker='|',
-                    c=colors_output, s=80, linewidths=3)
+    # axes[2].scatter(peak_times, range(1, n_outputs + 1), marker='|',
+    #                 c=colors_output, s=80, linewidths=3)
     axes[2].set_title('output unit\nresponses')
     axes[2].set_yticks([1, n_outputs])
     axes[2].set_xticks([0, 1])
