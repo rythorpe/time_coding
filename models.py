@@ -23,7 +23,11 @@ class RNN(nn.Module):
         self.tau_facil = 1.5  # 1.5 s
         self.beta = 18.0
         # scale up gain due to decrease in baseline conn strength from p_rel
-        self.gain = 2.2 / np.mean(p_rel_range)
+        self.gain_wo_stp_ = 2.2 / np.mean(p_rel_range)
+        # for now, initialize gain for simulation w/ STP
+        # to be the same as w/o STP
+        self.gain_w_stp_ = self.gain_wo_stp_
+        self.gain = self.gain_wo_stp_
         self.activation_gain = 8.0
         self.activation_thresh = 0.5
         prob_c = 0.1

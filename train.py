@@ -154,7 +154,8 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0, dt, include_stp, noise_tau, noise_std):
+               h_0, r_0, u_0, dt, include_stp, noise_tau, noise_std,
+               return_sim=False):
     model.train()
 
     state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
@@ -169,6 +170,9 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     # model.W_hh[:, :50] *= model.presyn_scaling.detach()[:50]
     # torch.nn.init.ones_(model.presyn_scaling)
     optimizer.zero_grad()
+
+    if return_sim:
+        return loss.item(), state_vars, model.parameters()
 
     return loss.item()
 
