@@ -16,18 +16,16 @@ class RNN(nn.Module):
     def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
                  p_rel_range=(0.1, 0.9)):
         super().__init__()
+        self.n_inputs = n_inputs
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
         self.tau = 0.01  # 10 ms
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
         self.beta = 18.0
+        self._init_gain = 2.2 / np.mean(p_rel_range)
         # scale up gain due to decrease in baseline conn strength from p_rel
-        self.gain_wo_stp_ = 2.2 / np.mean(p_rel_range)
-        # for now, initialize gain for simulation w/ STP
-        # to be the same as w/o STP
-        self.gain_w_stp_ = self.gain_wo_stp_
-        self.gain = self.gain_wo_stp_
+        self.gain = self._init_gain 
         self.activation_gain = 8.0
         self.activation_thresh = 0.5
         prob_c = 0.1

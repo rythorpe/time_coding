@@ -154,10 +154,11 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0, dt, include_stp, noise_tau, noise_std,
-               return_sim=False):
+               h_0, r_0, u_0, dt, include_stp, noise_tau, noise_std):
     model.train()
 
+    init_params = [param.detach().numpy() for param in model.parameters()
+                   if param.requires_grad]
     state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
                        include_stp=include_stp, noise_tau=noise_tau,
                        noise_std=noise_std)
@@ -171,10 +172,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     # torch.nn.init.ones_(model.presyn_scaling)
     optimizer.zero_grad()
 
-    if return_sim:
-        return loss.item(), state_vars, model.parameters()
-
-    return loss.item()
+    return loss.item(), init_params, state_vars
 
 
 def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
@@ -238,19 +236,19 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     except RuntimeError:
         Warning("Test loss isn't a scalar!")
 
-    # select first batch if more than one exists
-    # ext_in_batch = ext_in.cpu()[0]
+    # select first batch trial to visualize single-trial trajectories
     noise_batch = ext_in.cpu()[0] - inputs.cpu()[0]
     hidden_batch = model.transfer_func(h_t).cpu()[0]
     syn_eff_batch = r_t.cpu()[0] * u_t.cpu()[0]
-    outputs_batch = z_t.cpu()[0]
+    # average across batches to visualize mean output trajectories
+    outputs_avg = z_t.cpu().mean(dim=0)
     targets_batch = targets.cpu()[0]
 
     # visualize network's response
     if plot:
         # for not, plot injected noise over time as perturbation
         fig = plot_state_traj(perturb=noise_batch, h_units=hidden_batch,
-                              syn_eff=syn_eff_batch, outputs=outputs_batch,
+                              syn_eff=syn_eff_batch, outputs=outputs_avg,
                               targets=targets_batch, times=times)
         fig.show()
 
@@ -259,10 +257,11 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     psc_std = hidden_batch.mean()
     stats = dict(loss=loss, dimensionality=n_dim, psc_std=psc_std)
 
-    state_vars = (ext_in.cpu(),
-                  model.transfer_func(h_t).cpu(),
-                  r_t.cpu(),
-                  u_t.cpu(),
-                  z_t.cpu())
+    # select first batch trial
+    state_vars = (ext_in.cpu()[0],
+                  model.transfer_func(h_t).cpu()[0],
+                  r_t.cpu()[0],
+                  u_t.cpu()[0],
+                  z_t.cpu()[0])
 
     return state_vars, stats
