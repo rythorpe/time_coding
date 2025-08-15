@@ -6,12 +6,6 @@ import torch
 from torch import nn
 
 
-def get_jacobian(h_t_minus_1):
-    """Calculate Jacobian of hidden activity at the present time step."""
-    J
-    return J
-
-
 class RNN(nn.Module):
     def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
                  p_rel_range=(0.1, 0.9)):
