@@ -78,7 +78,7 @@ class RNN(nn.Module):
 
     def forward(self, x, h_0, r_0=None, u_0=None, dt=0.001,
                 return_deriv=False, include_stp=True,
-                noise_tau=0.01, noise_std=0.0):
+                noise_tau=0.01, noise_std=0.0, include_corr_noise=False):
 
         # assuming batches x time x n_inputs
         batch_size, seq_len, _ = x.size()
@@ -113,11 +113,23 @@ class RNN(nn.Module):
 
             # begin integration over time
             for t_idx in range(0, seq_len):
-                # noise
+                # noise; correct for non-stationarity in stochastic process
+                # where variance scales proportional to the sampling rate 1/dt
                 noise_scaling_fctr = np.sqrt(dt) / dt
+                noise_sample = torch.randn(self.n_hidden)
+                if include_corr_noise is True:
+                    # add correlated noise, then apply corrected normalization
+                    # factor
+                    noise_sample = (
+                        noise_sample +
+                        torch.ones(self.n_hidden) * torch.randn(1)
+                    ) / np.sqrt(2)
+                
                 dndt = (-n_t_minus_1 / noise_tau
-                        + noise_std * noise_scaling_fctr * torch.randn(self.n_hidden))
+                        + noise_std * noise_scaling_fctr * noise_sample)
                 n_t = n_t_minus_1 + dndt * dt
+
+                # total external input, including noise
                 ext_in = x[batch_idx, t_idx, :] @ self.W_ih.T + n_t_minus_1
                 ext_in_all[batch_idx, t_idx, :] = ext_in.clone()
 
