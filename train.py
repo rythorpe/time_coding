@@ -255,7 +255,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     # calculate metrics-of-interest
     n_dim = est_dimensionality(hidden_batch)
     psc_std = hidden_batch.mean()
-    stats = dict(loss=loss, dimensionality=n_dim, psc_std=psc_std)
+    stats = dict(loss=loss.item(), dimensionality=n_dim, psc_std=psc_std)
 
     # select first batch trial
     state_vars = (ext_in.cpu()[0],
