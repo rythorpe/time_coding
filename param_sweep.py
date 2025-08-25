@@ -11,10 +11,9 @@ from scipy import optimize
 import torch
 from torch import nn
 
-from utils import get_gaussian_targets
+from utils import get_gaussian_targets, get_commit_hash, get_timestamp
 from models import RNN
 from train import test_and_get_stats, train_bptt
-from viz import plot_state_traj, plot_all_units, plot_weight_distr
 
 
 sim_params_all = [[0.01, False, 0.01, 0.0, False],
@@ -25,9 +24,12 @@ sim_params_all = [[0.01, False, 0.01, 0.0, False],
                   [0.01, True, 0.01, 1e-6, False],
                   [0.01, False, 0.01, 1e-6, True],
                   [0.01, True, 0.01, 1e-6, True]]
-n_trials = 500
-return_trials = (0, 100, n_trials)
-output_dir = '/projects/ryth7446/time_coding_output'
+n_random_nets = 3
+n_jobs = 3
+n_trials = 5
+return_trials = (0, 2, n_trials)
+# output_dir = '/projects/ryth7446/time_coding_output'
+output_dir = '/home/ryan/Desktop'
 
 
 def adjust_gain_stp(model, times, n_steps=8):
@@ -38,6 +40,10 @@ def adjust_gain_stp(model, times, n_steps=8):
 
     # define inputs (for contextual modulation / recurrent perturbations)
     n_batches = 1
+    n_inputs = model.n_inputs
+    n_hidden = model.n_hidden
+    n_outputs = model.n_outputs
+    n_times = len(times)
     inputs = torch.zeros((n_batches, n_times, n_inputs))
     perturb_dur = 0.05  # 50 ms
     perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
@@ -93,7 +99,7 @@ def adjust_gain_stp(model, times, n_steps=8):
                                                 include_corr_noise=include_corr_noise,
                                                 plot=False)
             ext_in_, hidden_sr_t_, r_t_, u_t_, output_sr_t_ = state_vars_
-            syn_eff_ = r_t_* u_t_
+            syn_eff_ = r_t_ * u_t_
             adjustment_fctr = model.p_rel.mean() / syn_eff_.mean()
             model.gain = model._init_gain * adjustment_fctr
             gain_vals.append(model.gain.item())
@@ -104,9 +110,10 @@ def adjust_gain_stp(model, times, n_steps=8):
 def train_net(model, optimizer, loss_fn, times,
               tau, include_stp, noise_tau, noise_std, include_corr_noise,
               adjusted_gain,
-              n_trials=1000, return_trials=(0, 100, 1000), device='cpu'):
+              n_trials=1000, return_trials=(0, 100, 1000), dt=0.01,
+              device='cpu'):
     '''Train current instantiation of network model.
-    
+
     Returns network parameters and variables after return_trials number of
     training trials.
     '''
@@ -219,17 +226,13 @@ def train_net(model, optimizer, loss_fn, times,
     return losses, params, state_vars
 
 
-if __name__ == '__main__':
-    # set meta-parameters
-    # for plotting style
-    custom_params = {'axes.spines.right': False, 'axes.spines.top': False}
-    sns.set_theme(style='ticks', rc=custom_params)
-    # for pytorch tensors
-    device = 'cpu'
-    # for reproducibility while troubleshooting; numpy is for model sparse conns
-    torch.random.manual_seed(93214)
-    np.random.seed(35107)
+def loss_fn(output, target):
+    mse_fn = nn.MSELoss()
+    return mse_fn(output, target) / (target ** 2).mean()
 
+
+def eval_net_instance(sim_params_all, net_idx):
+    '''Sweeps over sim params for a given random net, then saves output.'''
     # set simulation parameters
     dt = 1e-3  # 1 ms
     tstop = 1.2  # 1 sec
@@ -238,30 +241,29 @@ if __name__ == '__main__':
 
     # create network and scale up gain to accomodate STP
     n_inputs, n_hidden, n_outputs = 1, 500, 10
-    bad_net = False
-    while bad_net is True:
+    sample_new_net = True
+    while sample_new_net is True:
         # instantiate network
         model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
                     n_outputs=n_outputs)
 
         # run gain adjustment; modifies gain in-place
+        print('start: gain adjustment')
         gains = adjust_gain_stp(model, times, n_steps=8)
+        print('end: gain adjustment')
 
-        # check for an abberant drop in gain
+        # check for an abberant drop in gain; if not, pass
         gain_diffs = np.diff(gains)
         increases = gain_diffs[gain_diffs > 0]
         decreases = gain_diffs[gain_diffs <= 0]
-        if np.abs(decreases).max() > 2 * increases.max():
-            bad_net = True
+        if np.abs(decreases).max() < 2 * increases.max():
+            sample_new_net = False
 
     # save baseline and adjusted gain values for later
     base_gain = gains[0]
     adjusted_gain = gains[-1]
 
-    # instantiate loss function and optimizer; link to RNN output weights for
-    # tuning
-    mse_fn = nn.MSELoss()
-    loss_fn = lambda a, b: mse_fn(a, b) / (b ** 2).mean()
+    # instantiate optimizer and link to RNN output weights for tuning
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
     # save inital state of tuned model parameters
@@ -270,7 +272,6 @@ if __name__ == '__main__':
 
     n_sims = len(sim_params_all)
     n_return_trials = len(return_trials)
-    n_vars = 5
     losses_all = np.empty((n_sims, n_trials + 1), dtype=np.float32)
     model_params_all = {'W_hz': np.empty((n_sims, n_return_trials, n_outputs,
                                           n_hidden), dtype=np.float32),
@@ -295,6 +296,7 @@ if __name__ == '__main__':
             model.W_hz.copy_(init_W_hz)
             model.offset_hz.copy_(init_offset_hz)
 
+        print(f'start: training for network condition {sim_idx}')
         losses, model_params, state_vars = train_net(
             model=model,
             optimizer=optimizer,
@@ -308,7 +310,9 @@ if __name__ == '__main__':
             adjusted_gain=adjusted_gain,
             n_trials=n_trials,
             return_trials=return_trials,
+            dt=dt,
             device=device)
+        print(f'end: training for network condition {sim_idx}')
 
         losses_all[sim_idx, :] = losses
         # convert to ragged array, then parse according to parameter name
@@ -323,10 +327,28 @@ if __name__ == '__main__':
         state_vars_all['z_t'][sim_idx] = np.array([state_var[4] for state_var in state_vars])
 
     # save simulation data in HDF5 file within output directory
-    fname = op.join(output_dir, 'sim_data.hdf5')
-    with h5py.File(fname, 'w') as f_write:
+    fname_local = ('sim_data_' + f'net{net_idx}_' +
+                   get_commit_hash() + '_' + get_timestamp() + '.hdf5')
+    fname_absolute = op.join(output_dir, fname_local)
+    with h5py.File(fname_absolute, 'w') as f_write:
         f_write.create_dataset('sim_params', data=np.array(sim_params_all))
         for key, val in model_params_all.items():
             f_write.create_dataset(key, data=val)
         for key, val in state_vars_all.items():
             f_write.create_dataset(key, data=val)
+
+
+if __name__ == '__main__':
+    # set meta-parameters
+    # for plotting style
+    custom_params = {'axes.spines.right': False, 'axes.spines.top': False}
+    sns.set_theme(style='ticks', rc=custom_params)
+    # for pytorch tensors
+    device = 'cpu'
+    # for reproducibility; numpy is for model sparse conns
+    torch.random.manual_seed(93214)
+    np.random.seed(35107)
+
+    Parallel(n_jobs=n_jobs)(delayed(eval_net_instance)
+                            (sim_params_all, net_idx)
+                            for net_idx in range(n_random_nets))

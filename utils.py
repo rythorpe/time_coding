@@ -1,5 +1,8 @@
 """Utility variables and functions."""
 
+import subprocess
+from datetime import datetime
+
 import numpy as np
 import scipy
 import torch
@@ -103,3 +106,12 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
         fig.show()
 
     return h_transfer_subset, opt_basis
+
+
+def get_commit_hash():
+    git_commands = ['git', 'rev-parse', '--short', 'HEAD']
+    return subprocess.check_output(git_commands).decode('ascii').strip()
+
+
+def get_timestamp():
+    return datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
