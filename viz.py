@@ -159,7 +159,7 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     axes[3].set_xticks(np.arange(0, 1.2, 0.2))
     axes[3].set_xlabel('time (s)')
     axes[3].set_ylabel('normalized\nfiring rate (a.u.)')
-    axes[3].set_yticks([-1, 0, 1])
+    axes[3].set_yticks([0, 1])
 
     fig.tight_layout()
 
