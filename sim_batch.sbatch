@@ -16,7 +16,7 @@ module load anaconda
 conda activate rnn
 
 echo "== Start of Job =="
-python main_dev.py
+python param_sweep.py
 echo "== End of Job =="
 
 conda deactivate
