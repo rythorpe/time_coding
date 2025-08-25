@@ -24,12 +24,12 @@ sim_params_all = [[0.01, False, 0.01, 0.0, False],
                   [0.01, True, 0.01, 1e-6, False],
                   [0.01, False, 0.01, 1e-6, True],
                   [0.01, True, 0.01, 1e-6, True]]
-n_random_nets = 3
-n_jobs = 3
-n_trials = 5
-return_trials = (0, 2, n_trials)
-# output_dir = '/projects/ryth7446/time_coding_output'
-output_dir = '/home/ryan/Desktop'
+n_random_nets = 30
+n_jobs = 30
+n_trials = 1000
+return_trials = (0, 100, n_trials)
+output_dir = '/projects/ryth7446/time_coding_output'
+# output_dir = '/home/ryan/Desktop'
 
 
 def adjust_gain_stp(model, times, n_steps=8):
