@@ -154,14 +154,14 @@ def train_bptt_sparse(inputs, targets, times, model, loss_fn, optimizer,
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0, dt, include_stp, noise_tau, noise_std):
+               h_0, r_0, u_0, dt, include_stp, noise_tau, noise_std, include_corr_noise):
     model.train()
 
     init_params = [param.detach().numpy() for param in model.parameters()
                    if param.requires_grad]
     state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
                        include_stp=include_stp, noise_tau=noise_tau,
-                       noise_std=noise_std)
+                       noise_std=noise_std, include_corr_noise=include_corr_noise)
     z_t = state_vars[4]
     loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
     loss.backward()
@@ -219,7 +219,7 @@ def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       include_stp, noise_tau, noise_std, plot=True):
+                       include_stp, noise_tau, noise_std, include_corr_noise, plot=True):
     dt = times[1] - times[0]
     model.eval()
 
@@ -228,7 +228,8 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         ext_in, h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0,
                                            dt=dt, include_stp=include_stp,
                                            noise_tau=noise_tau,
-                                           noise_std=noise_std)
+                                           noise_std=noise_std,
+                                           include_corr_noise=include_corr_noise)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
 
     try:
@@ -258,10 +259,10 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     stats = dict(loss=loss.item(), dimensionality=n_dim, psc_std=psc_std)
 
     # select first batch trial
-    state_vars = (ext_in.cpu()[0],
-                  model.transfer_func(h_t).cpu()[0],
-                  r_t.cpu()[0],
-                  u_t.cpu()[0],
-                  z_t.cpu()[0])
+    state_vars = (ext_in.cpu(),
+                  model.transfer_func(h_t).cpu(),
+                  r_t.cpu(),
+                  u_t.cpu(),
+                  z_t.cpu())
 
     return state_vars, stats
