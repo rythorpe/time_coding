@@ -192,7 +192,6 @@ def train_net(model, optimizer, loss_fn, times,
             state_vars.append(state_vars_processed)
 
         losses.append(loss)
-        print(f"Training trial {trial_idx} complete!")
 
     # investigate fitted model after training; test output using iid noise
     # averaged across 10 batch trials
