@@ -1,4 +1,4 @@
-"""ANN models."""
+"""RNN model."""
 
 import numpy as np
 
