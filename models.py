@@ -124,7 +124,7 @@ class RNN(nn.Module):
                         noise_sample +
                         torch.ones(self.n_hidden) * torch.randn(1)
                     ) / np.sqrt(2)
-                
+
                 dndt = (-n_t_minus_1 / noise_tau
                         + noise_std * noise_scaling_fctr * noise_sample)
                 n_t = n_t_minus_1 + dndt * dt
