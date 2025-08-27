@@ -257,6 +257,8 @@ def eval_net_instance(sim_params_all, net_idx):
         decreases = gain_diffs[gain_diffs <= 0]
         if np.abs(decreases).max() < 2 * increases.max():
             sample_new_net = False
+        else:
+            print('warning: resampling network')
 
     # save baseline and adjusted gain values for later
     base_gain = gains[0]
@@ -326,10 +328,11 @@ def eval_net_instance(sim_params_all, net_idx):
         state_vars_all['z_t'][sim_idx] = np.array([state_var[4] for state_var in state_vars])
 
     # save simulation data in HDF5 file within output directory
-    fname_local = ('sim_data_' + f'net{net_idx}_' +
+    fname_local = ('sim_data_' + f'net{net_idx:02d}_' +
                    get_commit_hash() + '_' + get_timestamp() + '.hdf5')
     fname_absolute = op.join(output_dir, fname_local)
     with h5py.File(fname_absolute, 'w') as f_write:
+        f_write.create_dataset('losses', data=losses_all)
         f_write.create_dataset('sim_params', data=np.array(sim_params_all))
         for key, val in model_params_all.items():
             f_write.create_dataset(key, data=val)
