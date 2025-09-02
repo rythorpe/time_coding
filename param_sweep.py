@@ -15,15 +15,17 @@ from utils import get_gaussian_targets, get_commit_hash, get_timestamp
 from models import RNN
 from train import test_and_get_stats, train_bptt
 
-
-sim_params_all = [[0.01, False, 0.01, 0.0, False],
-                  [0.05, False, 0.01, 0.0, False],
-                  [0.01, False, 0.01, 0.0, False],
-                  [0.01, True, 0.01, 0.0, False],
-                  [0.01, False, 0.01, 1e-6, False],
-                  [0.01, True, 0.01, 1e-6, False],
-                  [0.01, False, 0.01, 1e-6, True],
-                  [0.01, True, 0.01, 1e-6, True]]
+# tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range
+sim_params_all = [[0.01, False, 0.01, 0.0, False, (0.1, 0.9)],
+                  [0.05, False, 0.01, 0.0, False, (0.1, 0.9)],
+                  [0.01, False, 0.01, 0.0, False, (0.1, 0.9)],
+                  [0.01, True, 0.01, 0.0, False, (0.1, 0.9)],
+                  [0.01, False, 0.01, 1e-6, False, (0.1, 0.9)],
+                  [0.01, True, 0.01, 1e-6, False, (0.1, 0.9)],
+                  [0.01, False, 0.01, 1e-6, True, (0.1, 0.9)],
+                  [0.01, True, 0.01, 1e-6, True, (0.1, 0.9)],
+                  [0.01, True, 0.01, 1e-6, False, (0.4, 0.6)],
+                  [0.01, True, 0.01, 1e-6, False, (0.5, 0.5)]]
 n_random_nets = 30
 n_jobs = 30
 n_trials = 1000
@@ -109,7 +111,7 @@ def adjust_gain_stp(model, times, n_steps=8):
 
 def train_net(model, optimizer, loss_fn, times,
               tau, include_stp, noise_tau, noise_std, include_corr_noise,
-              adjusted_gain,
+              p_rel_range, adjusted_gain,
               n_trials=1000, return_trials=(0, 100, 1000), dt=0.01,
               device='cpu'):
     '''Train current instantiation of network model.
@@ -137,6 +139,7 @@ def train_net(model, optimizer, loss_fn, times,
         model.gain = adjusted_gain
     else:
         model.gain = model._init_gain
+    torch.nn.init.uniform_(model.p_rel, a=p_rel_range[0], b=p_rel_range[1])
 
     # define output targets
     # set std s.t. amplitude decays to 1/e at intersection with next target
@@ -290,7 +293,7 @@ def eval_net_instance(sim_params_all, net_idx):
                                        n_outputs), dtype=np.float32)}
 
     for sim_idx, sim_params in enumerate(sim_params_all):
-        tau, include_stp, noise_tau, noise_std, include_corr_noise = sim_params
+        tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range = sim_params
 
         # reset output weights
         with torch.no_grad():
@@ -308,6 +311,7 @@ def eval_net_instance(sim_params_all, net_idx):
             noise_tau=noise_tau,
             noise_std=noise_std,
             include_corr_noise=include_corr_noise,
+            p_rel_range=p_rel_range,
             adjusted_gain=adjusted_gain,
             n_trials=n_trials,
             return_trials=return_trials,
