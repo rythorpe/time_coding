@@ -260,7 +260,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
 
     # select first batch trial
     state_vars = (ext_in.cpu(),
-                  model.transfer_func(h_t).cpu(),
+                  h_t.cpu(),
                   r_t.cpu(),
                   u_t.cpu(),
                   z_t.cpu())
