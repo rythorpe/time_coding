@@ -16,16 +16,16 @@ from models import RNN
 from train import test_and_get_stats, train_bptt
 
 # tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range
-sim_params_all = [[0.01, False, 0.01, 0.0, False, 'high'],
-                  [0.05, False, 0.01, 0.0, False, 'high'],
-                  [0.01, False, 0.01, 0.0, False, 'high'],
-                  [0.01, True, 0.01, 0.0, False, 'high'],
-                  [0.01, False, 0.01, 1e-6, False, 'high'],
-                  [0.01, True, 0.01, 1e-6, False, 'high'],
-                  [0.01, False, 0.01, 1e-6, True, 'high'],
-                  [0.01, True, 0.01, 1e-6, True, 'high'],
-                  [0.01, True, 0.01, 1e-6, False, 'low'],
-                  [0.01, True, 0.01, 1e-6, False, 'none']]
+sim_params_all = [[0.01, False, 0.01, 0.0, False, 2],
+                  [0.05, False, 0.01, 0.0, False, 2],
+                  [0.01, False, 0.01, 0.0, False, 2],
+                  [0.01, True, 0.01, 0.0, False, 2],
+                  [0.01, False, 0.01, 1e-6, False, 2],
+                  [0.01, True, 0.01, 1e-6, False, 2],
+                  [0.01, False, 0.01, 1e-6, True, 2],
+                  [0.01, True, 0.01, 1e-6, True, 2],
+                  [0.01, True, 0.01, 1e-6, False, 1],
+                  [0.01, True, 0.01, 1e-6, False, 0]]
 n_random_nets = 30
 n_jobs = 30
 n_trials = 1000
@@ -139,12 +139,12 @@ def train_net(model, optimizer, loss_fn, times,
         model.gain = adjusted_gain
     else:
         model.gain = model._init_gain
-    if p_rel_range == 'high':
-        p_rel_range = (0.1, 0.9)
-    elif p_rel_range == 'low':
-        p_rel_range = (0.4, 0.6)
-    elif p_rel_range == 'none':
-        p_rel_range = (0.5, 0.5)
+    if p_rel_range == 2:
+        p_rel_range = (0.1, 0.9)  # high heterogeneity
+    elif p_rel_range == 1:
+        p_rel_range = (0.4, 0.6)  # low heterogeneity
+    elif p_rel_range == 0:
+        p_rel_range = (0.5, 0.5)  # homogeneous
     torch.nn.init.uniform_(model.p_rel, a=p_rel_range[0], b=p_rel_range[1])
 
     # define output targets
