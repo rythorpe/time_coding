@@ -277,8 +277,8 @@ def eval_net_instance(sim_params_all, net_idx):
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
 
     # save inital state of tuned model parameters
-    init_W_hz = model.W_hz.data.detach()
-    init_offset_hz = model.offset_hz.data.detach()
+    init_W_hz = model.W_hz.data.detach().clone()
+    init_offset_hz = model.offset_hz.data.detach().clone()
 
     n_sims = len(sim_params_all)
     n_return_trials = len(return_trials)
