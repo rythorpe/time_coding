@@ -22,7 +22,7 @@ class RNN(nn.Module):
         self.gain = self._init_gain 
         self.activation_gain = 8.0
         self.activation_thresh = 0.5
-        prob_c = 0.30
+        prob_c = 0.10
 
         # constant network parameters
         self.p_rel = torch.empty(n_hidden)

@@ -248,7 +248,7 @@ def eval_net_instance(sim_params_all, net_idx):
     n_times = len(times)
 
     # create network and scale up gain to accomodate STP
-    n_inputs, n_hidden, n_outputs = 1, 500, 10
+    n_inputs, n_hidden, n_outputs = 1, 1000, 10
     sample_new_net = True
     while sample_new_net is True:
         # instantiate network
