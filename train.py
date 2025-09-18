@@ -2,6 +2,7 @@
 
 import numpy as np
 from scipy.spatial import distance
+from sklearn import linear_model
 import matplotlib.pyplot as plt
 
 import torch
@@ -175,52 +176,51 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     return loss.item(), init_params, state_vars
 
 
-def set_optimimal_w_out(inputs, targets, times, model, loss_fn, h_0,
-                        plot=True):
-    dt = times[1] - times[0]
+def solve_ls_batch(hidden_sr, target_output):
+    # assumes hidden_sr is trials x times x units
+    n_trials, n_times, n_h_units = hidden_sr.shape
+    _, _, n_out_units = target_output.shape
+    # concat across trials (1st dim)
+    hidden_sr = torch.reshape(hidden_sr, (n_trials * n_times,
+                                          n_h_units))
+    target_output = torch.reshape(target_output, (n_trials * n_times,
+                                                  n_out_units))
+
+    reg_model = linear_model.Ridge(alpha=1.0, fit_intercept=True)
+    reg_model.fit(hidden_sr, target_output)
+    weights = torch.tensor(reg_model.coef_, dtype=torch.float32)
+    offsets = torch.tensor(reg_model.intercept_, dtype=torch.float32)
+
+    return weights, offsets
+
+
+def sim_batch(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
+              dt, include_stp, noise_tau, noise_std,
+              include_corr_noise):
     model.eval()
 
     with torch.no_grad():
-
-        # Compute prediction error
-        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, dt=dt)
+        # simulate and calculate total output error
+        ext_in, h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0,
+                                           dt=dt, include_stp=include_stp,
+                                           noise_tau=noise_tau,
+                                           noise_std=noise_std,
+                                           include_corr_noise=include_corr_noise)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-        h_transfer = model.transfer_func(h_t)
 
-        # assuming batch size of 1, select first and only batch
-        h_transfer = h_transfer.cpu()[0, times > 0, :]
+    # select first batch trial
+    state_vars = (ext_in.cpu(),
+                  h_t.cpu(),
+                  r_t.cpu(),
+                  u_t.cpu(),
+                  z_t.cpu())
 
-        cov = h_transfer.T @ h_transfer
-        # once again, assuming batch size of 1
-        targets_ = targets[0, times > 0, :]  # column vectors
-        # W_hz_ = cov.inverse() @ (h_transfer.T @ targets_)
-        W_hz_ = torch.linalg.solve(cov, (h_transfer.T @ targets_))
-        model.W_hz[:] = W_hz_.T
-        # h_argmax = torch.argmax(model.W_hz.abs(), dim=1)
-
-        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, dt=dt)
-        # plt.figure()
-        # plt.plot(times[times > 0], h_transfer[:, h_argmax])
-        # plt.ylabel('f(X)')
-        # plt.xlabel('time (s)')
-        loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-        print(f"Min. loss: {loss.item():>7f}")
-
-    # select first batch if more than one exists
-    hidden_batch = model.transfer_func(h_t).cpu()[0]
-    outputs_batch = z_t.cpu()[0]
-    targets_batch = targets.cpu()[0]
-
-    if plot:
-        fig = plot_state_traj(h_units=hidden_batch, outputs=outputs_batch,
-                              targets=targets_batch, times=times)
-        fig.show()
-    return z_t.cpu()
+    return state_vars, loss.item()
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       include_stp, noise_tau, noise_std, include_corr_noise, plot=True):
-    dt = times[1] - times[0]
+                       dt, include_stp, noise_tau, noise_std,
+                       include_corr_noise, plot=True):
     model.eval()
 
     with torch.no_grad():
@@ -238,27 +238,25 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         Warning("Test loss isn't a scalar!")
 
     # select first batch trial to visualize single-trial trajectories
-    noise_batch = ext_in.cpu()[0] - inputs.cpu()[0]
-    hidden_batch = model.transfer_func(h_t).cpu()[0]
-    syn_eff_batch = r_t.cpu()[0] * u_t.cpu()[0]
-    # average across batches to visualize mean output trajectories
-    outputs_avg = z_t.cpu().mean(dim=0)
-    targets_batch = targets.cpu()[0]
+    noise_trial = ext_in.cpu()[0] - inputs.cpu()[0]
+    hidden_trial = model.transfer_func(h_t).cpu()[0]
+    syn_eff_trial = r_t.cpu()[0] * u_t.cpu()[0]
+    outputs_trial = z_t.cpu()[0]
+    targets_trial = targets.cpu()[0]
 
     # visualize network's response
     if plot:
         # for not, plot injected noise over time as perturbation
-        fig = plot_state_traj(perturb=noise_batch, h_units=hidden_batch,
-                              syn_eff=syn_eff_batch, outputs=outputs_avg,
-                              targets=targets_batch, times=times)
+        fig = plot_state_traj(perturb=noise_trial, h_units=hidden_trial,
+                              syn_eff=syn_eff_trial, outputs=outputs_trial,
+                              targets=targets_trial, times=times)
         fig.show()
 
     # calculate metrics-of-interest
-    n_dim = est_dimensionality(hidden_batch)
-    psc_std = hidden_batch.mean()
-    stats = dict(loss=loss.item(), dimensionality=n_dim, psc_std=psc_std)
+    n_dim = est_dimensionality(hidden_trial)
+    stats = dict(loss=loss.item(), dimensionality=n_dim)
 
-    # select first batch trial
+    # package all state variables
     state_vars = (ext_in.cpu(),
                   h_t.cpu(),
                   r_t.cpu(),
