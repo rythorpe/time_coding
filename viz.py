@@ -151,7 +151,7 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     axes[3].plot(times_after_zero, targets[time_mask, :], lw=2, ls=':')
     axes[3].plot(times, outputs, lw=2)
     output_lb = outputs.min()
-    output_ub = outputs.max()
+    output_ub = np.max([outputs.max(), targets.max()])
     rec_height = output_ub - output_lb
     axes[3].add_patch(Rectangle([-0.05, output_lb], 0.05, rec_height,
                                 ec='none', fc='k',
