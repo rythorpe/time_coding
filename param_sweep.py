@@ -34,7 +34,7 @@ output_dir = '/projects/ryth7446/time_coding_output'
 # output_dir = '/home/ryan/Desktop'
 
 
-def adjust_gain_stp(model, times, n_steps=8):
+def adjust_gain_stp(model, times, n_steps=8, dt=dt):
     '''Adjust network gain to compensate for STP in-place.
 
     Returns initial gain value.
@@ -95,7 +95,7 @@ def adjust_gain_stp(model, times, n_steps=8):
         for update_idx in range(2):
             state_vars_, _ = test_and_get_stats(inputs, targets, times,
                                                 model, loss_fn, h_0, r_0, u_0,
-                                                include_stp=True,
+                                                dt=dt, include_stp=True,
                                                 noise_tau=noise_tau,
                                                 noise_std=noise_std,
                                                 include_corr_noise=include_corr_noise,
@@ -112,7 +112,7 @@ def adjust_gain_stp(model, times, n_steps=8):
 def train_net(model, optimizer, loss_fn, times,
               tau, include_stp, noise_tau, noise_std, include_corr_noise,
               p_rel_range, adjusted_gain,
-              n_trials=1000, return_trials=(0, 100, 1000), dt=0.01,
+              n_trials=1000, return_trials=(0, 100, 1000), dt=1e-3,
               device='cpu'):
     '''Train current instantiation of network model.
 
@@ -168,6 +168,7 @@ def train_net(model, optimizer, loss_fn, times,
 
     # run opt routine
     # move to desired device
+    model.to(device)
     inputs = inputs.to(device)
     targets = targets.to(device)
     h_0 = h_0.to(device)
@@ -211,7 +212,7 @@ def train_net(model, optimizer, loss_fn, times,
     u_0_test = torch.tile(u_0, dims=(10, 1))
     state_vars_post_raw, sim_stats_post = test_and_get_stats(
         inputs_test, targets_test, times, model, loss_fn,
-        h_0_test, r_0_test, u_0_test,
+        h_0_test, r_0_test, u_0_test, dt=dt,
         include_stp=include_stp, noise_tau=noise_tau, noise_std=noise_std,
         include_corr_noise=include_corr_noise, plot=False)
 
@@ -257,7 +258,7 @@ def eval_net_instance(sim_params_all, net_idx):
 
         # run gain adjustment; modifies gain in-place
         print('start: gain adjustment')
-        gains = adjust_gain_stp(model, times, n_steps=8)
+        gains = adjust_gain_stp(model, times, n_steps=8, dt=dt)
         print('end: gain adjustment')
 
         # check for an abberant drop in gain; if not, pass
