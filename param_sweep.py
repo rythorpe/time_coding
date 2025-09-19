@@ -34,7 +34,7 @@ output_dir = '/projects/ryth7446/time_coding_output'
 # output_dir = '/home/ryan/Desktop'
 
 
-def adjust_gain_stp(model, times, n_steps=8, dt=dt):
+def adjust_gain_stp(model, times, dt, n_steps=8):
     '''Adjust network gain to compensate for STP in-place.
 
     Returns initial gain value.
@@ -290,13 +290,13 @@ def eval_net_instance(sim_params_all, net_idx):
                                                n_outputs), dtype=np.float32)}
     state_vars_all = {'ext_in': np.empty((n_sims, n_return_trials, n_times,
                                           n_hidden), dtype=np.float32),
-                      'h_t': np.empty((n_sims, n_return_trials, n_times,
+                      'h_sp': np.empty((n_sims, n_return_trials, n_times,
                                        n_hidden), dtype=np.float32),
-                      'r_t': np.empty((n_sims, n_return_trials, n_times,
+                      'r': np.empty((n_sims, n_return_trials, n_times,
                                        n_hidden), dtype=np.float32),
-                      'u_t': np.empty((n_sims, n_return_trials, n_times,
+                      'u': np.empty((n_sims, n_return_trials, n_times,
                                        n_hidden), dtype=np.float32),
-                      'z_t': np.empty((n_sims, n_return_trials, n_times,
+                      'z': np.empty((n_sims, n_return_trials, n_times,
                                        n_outputs), dtype=np.float32)}
 
     for sim_idx, sim_params in enumerate(sim_params_all):
@@ -333,10 +333,10 @@ def eval_net_instance(sim_params_all, net_idx):
         model_params_all['offset_hz'][sim_idx] = np.array([model_param[1] for model_param in model_params])
         # convert to ragged array, then parse according to variable name
         state_vars_all['ext_in'][sim_idx] = np.array([state_var[0] for state_var in state_vars])
-        state_vars_all['h_t'][sim_idx] = np.array([state_var[1] for state_var in state_vars])
-        state_vars_all['r_t'][sim_idx] = np.array([state_var[2] for state_var in state_vars])
-        state_vars_all['u_t'][sim_idx] = np.array([state_var[3] for state_var in state_vars])
-        state_vars_all['z_t'][sim_idx] = np.array([state_var[4] for state_var in state_vars])
+        state_vars_all['h_sp'][sim_idx] = np.array([state_var[1] for state_var in state_vars])
+        state_vars_all['r'][sim_idx] = np.array([state_var[2] for state_var in state_vars])
+        state_vars_all['u'][sim_idx] = np.array([state_var[3] for state_var in state_vars])
+        state_vars_all['z'][sim_idx] = np.array([state_var[4] for state_var in state_vars])
 
     # save simulation data in HDF5 file within output directory
     fname_local = ('sim_data_' + f'net{net_idx:02d}_' +
