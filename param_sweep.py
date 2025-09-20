@@ -25,7 +25,7 @@ sim_params_all = [[0.01, False, 0.01, 0.0, False, 2],
                   [0.01, True, 0.01, 1e-6, False, 1],
                   [0.01, True, 0.01, 1e-6, False, 0]]
 n_random_nets = 30
-n_jobs = 30
+n_jobs = 15
 n_trials = 50
 output_dir = '/projects/ryth7446/time_coding_output'
 # output_dir = '/home/ryan/Desktop'
