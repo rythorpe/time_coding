@@ -18,12 +18,12 @@ from train import sim_batch
 # tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range
 sim_params_all = [[0.01, False, 0.01, 0.0, False, 2],
                   [0.01, True, 0.01, 0.0, False, 2],
-                  [0.01, False, 0.01, 1e-6, False, 2],
-                  [0.01, True, 0.01, 1e-6, False, 2],
-                  [0.01, False, 0.01, 1e-6, True, 2],
-                  [0.01, True, 0.01, 1e-6, True, 2],
-                  [0.01, True, 0.01, 1e-6, False, 1],
-                  [0.01, True, 0.01, 1e-6, False, 0]]
+                  [0.01, False, 0.01, 1e-7, False, 2],
+                  [0.01, True, 0.01, 1e-7, False, 2],
+                  [0.01, False, 0.01, 1e-7, True, 2],
+                  [0.01, True, 0.01, 1e-7, True, 2],
+                  [0.01, True, 0.01, 1e-7, False, 1],
+                  [0.01, True, 0.01, 1e-7, False, 0]]
 n_random_nets = 30
 n_jobs = 15
 n_trials = 50
