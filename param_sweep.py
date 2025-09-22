@@ -15,20 +15,22 @@ from utils import get_gaussian_targets, get_commit_hash, get_timestamp
 from models import RNN
 from train import sim_batch
 
-# tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range
-sim_params_all = [[0.01, False, 0.01, 0.0, False, 2],
-                  [0.01, True, 0.01, 0.0, False, 2],
-                  [0.01, False, 0.01, 1e-7, False, 2],
-                  [0.01, True, 0.01, 1e-7, False, 2],
-                  [0.01, False, 0.01, 1e-7, True, 2],
-                  [0.01, True, 0.01, 1e-7, True, 2],
-                  [0.01, True, 0.01, 1e-7, False, 1],
-                  [0.01, True, 0.01, 1e-7, False, 0]]
-n_random_nets = 30
-n_jobs = 15
+
+noise_tau_range = 10 ** np.linspace(-2, 0, 5)
+noise_std_range = 10 ** np.linspace(-7, -3, 5)
+
+sim_params_all = list()
+for noise_tau in noise_tau_range:
+    for noise_std in noise_std_range:
+        # tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range
+        sim_params_all.append([0.01, False, noise_tau, noise_std, False, 2])
+        sim_params_all.append([0.01, True, noise_tau, noise_std, False, 2])
+
+n_random_nets = 3
+n_jobs = 1
 n_trials = 50
-output_dir = '/projects/ryth7446/time_coding_output'
-# output_dir = '/home/ryan/Desktop'
+# output_dir = '/projects/ryth7446/time_coding_output'
+output_dir = '/home/ryan/Desktop'
 
 
 def adjust_gain_stp(model, times, dt, n_steps=8):
