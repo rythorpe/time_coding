@@ -169,12 +169,12 @@ def sim_net(model, loss_fn, times,
     h_0 = h_0.to(device)
     r_0 = r_0.to(device)
     u_0 = u_0.to(device)
- 
+
     state_vars_raw, _ = sim_batch(
         inputs, targets, times, model, loss_fn, h_0, r_0, u_0, dt,
         include_stp=include_stp, noise_tau=noise_tau,
         noise_std=noise_std, include_corr_noise=include_corr_noise)
-    
+
     ext_in, h_t, r_t, u_t, z_t = state_vars_raw
     state_vars = (ext_in.detach().numpy(),
                   model.transfer_func(h_t).detach().numpy(),
@@ -229,11 +229,11 @@ def eval_net_instance(sim_params_all, net_idx):
     state_vars_all = {'ext_in': np.empty((n_sims, n_trials, n_times,
                                           n_hidden), dtype=np.float32),
                       'h_sp': np.empty((n_sims, n_trials, n_times,
-                                       n_hidden), dtype=np.float32),
+                                        n_hidden), dtype=np.float32),
                       'r': np.empty((n_sims, n_trials, n_times,
-                                       n_hidden), dtype=np.float32),
+                                     n_hidden), dtype=np.float32),
                       'u': np.empty((n_sims, n_trials, n_times,
-                                       n_hidden), dtype=np.float32)}
+                                     n_hidden), dtype=np.float32)}
 
     for sim_idx, sim_params in enumerate(sim_params_all):
         tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range = sim_params
