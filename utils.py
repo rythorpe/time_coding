@@ -59,12 +59,12 @@ def est_dimensionality(column_vars):
     return n_dim
 
 
-def get_gaussian_targets(n_batches, peak_times, times, targ_std):
+def get_gaussian_targets(n_batch_trials, peak_times, times, targ_std):
     n_times = len(times)
     n_outputs = len(peak_times)
-    targets = torch.zeros((n_batches, n_times, n_outputs))
+    targets = torch.zeros((n_batch_trials, n_times, n_outputs))
     for output_idx, center in enumerate(peak_times):
-        targets[0, :, output_idx] = torch.tensor(gaussian(times, center,
+        targets[:, :, output_idx] = torch.tensor(gaussian(times, center,
                                                           targ_std))
     return targets
 
