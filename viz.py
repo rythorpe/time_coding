@@ -127,7 +127,7 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     axes[0].add_patch(Rectangle([-0.05, perturb_lb], 0.05, rec_height,
                                 ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[0].set_ylabel('injected\ncurrent (a.u.)')
+    axes[0].set_ylabel('noise (a.u.)')
     # axes[0].set_yticks([0, 1])
 
     # recurrent unit trajectories
