@@ -8,7 +8,7 @@ from torch import nn
 
 class RNN(nn.Module):
     def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
-                 p_rel_range=(0.1, 0.9)):
+                 p_rel_range=(0.1, 0.9), conn_rule=None):
         super().__init__()
         self.n_inputs = n_inputs
         self.n_hidden = n_hidden
@@ -18,8 +18,9 @@ class RNN(nn.Module):
         self.tau_facil = 1.5  # 1.5 s
         self.beta = 18.0
         self._init_gain = 2.2 / np.mean(p_rel_range)
+        # self._init_gain = 2.2
         # scale up gain due to decrease in baseline conn strength from p_rel
-        self.gain = self._init_gain 
+        self.gain = self._init_gain
         self.activation_gain = 8.0
         self.activation_thresh = 0.5
         prob_c = 0.10
@@ -43,6 +44,7 @@ class RNN(nn.Module):
         # initialize release probabilities
         # bounds taken from Tsodyks & Markram PNAS 1997
         torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
+        # self.presyn_scaling = 1 / self.p_rel
 
         # initialize input weights
         # w_input_std = 1 / np.sqrt(n_hidden)
@@ -50,7 +52,34 @@ class RNN(nn.Module):
 
         # initialize hidden weights
         w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
-        torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
+        if conn_rule is None:
+            torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
+        else:
+            for target_idx in range(self.n_hidden):
+                source_weights = torch.randn(self.n_hidden) * w_hidden_std
+                # sort according to decending weight strength
+                weight_sort_idxs = torch.argsort(source_weights.abs(),
+                                                 descending=True)
+                if conn_rule == 'p_rel_cluster':
+                    # strong inter-connectivity between units of similar p_rel
+                    order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
+                    # sources with p_rel similar to that of target will receive early position in sorted set
+                    source_sort_idxs = order_metric.argsort(descending=False)
+                elif conn_rule == 'p_rel_anticluster':
+                    # strong inter-connectivity between units of dissimilar p_rel
+                    order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
+                    source_sort_idxs = order_metric.argsort(descending=True)
+                elif conn_rule == 'p_rel_corr':
+                    # connection strength correlates with presynaptic p_rel
+                    order_metric = self.p_rel.clone()
+                    source_sort_idxs = order_metric.argsort(descending=True)
+                elif conn_rule == 'p_rel_anticorr':
+                    # connection strength anticorrelates with presynaptic p_rel
+                    order_metric = self.p_rel.clone()
+                    source_sort_idxs = order_metric.argsort(descending=False)
+                # assign sorted source weights
+                self.W_hh[target_idx, source_sort_idxs] = source_weights[weight_sort_idxs]
+
         # create mask for non-zero connections; tuning weights of
         # zeroed connections won't effect model dynamics
         n_conns_possible = n_hidden ** 2
