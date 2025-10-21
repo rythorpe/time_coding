@@ -108,8 +108,8 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     time_mask = times > 0
     times_after_zero = times[time_mask]
 
-    n_hidden_plot = 5  # number of hidden units to plot
-    if n_hidden < 5:
+    n_hidden_plot = 50  # number of hidden units to plot
+    if n_hidden < 50:
         n_hidden_plot = n_hidden
 
     fig, axes = plt.subplots(4, 1, sharex=True, figsize=(6, 6))
@@ -121,21 +121,21 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     # injected current
     axes[0].set_prop_cycle(cycler('color', cm_hidden))
     axes[0].plot(times, perturb[:, :n_hidden_plot])
-    perturb_lb = perturb[:, :n_hidden_plot].min()
-    perturb_ub = perturb[:, :n_hidden_plot].max()
+    perturb_lb = np.min([perturb[:, :n_hidden_plot].min(), -1.0])
+    perturb_ub = np.max([perturb[:, :n_hidden_plot].max(), 1.0])
     rec_height = perturb_ub - perturb_lb
     axes[0].add_patch(Rectangle([-0.05, perturb_lb], 0.05, rec_height,
                                 ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[0].set_ylabel('noise (a.u.)')
-    # axes[0].set_yticks([0, 1])
+    axes[0].set_ylabel('I + $\mathcal{N}$')
+    axes[0].set_yticks([-1, 0, 1])
 
     # recurrent unit trajectories
     axes[1].set_prop_cycle(cycler('color', cm_hidden))
     axes[1].plot(times, h_units[:, :n_hidden_plot])
     axes[1].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[1].set_ylabel('normalized\nfiring rate (a.u.)')
+    axes[1].set_ylabel('x')
     axes[1].set_yticks([0, 1])
 
     # synaptic utilization (from STP)
@@ -143,7 +143,7 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     axes[2].plot(times, syn_eff[:, :n_hidden_plot])
     axes[2].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
                                 alpha=0.2, zorder=100))
-    axes[2].set_ylabel('synaptic\nefficacy')
+    axes[2].set_ylabel('$u{\cdot}r$')
     axes[2].set_yticks([0, 1])
 
     # outputs
@@ -158,7 +158,7 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
                                 alpha=0.2, zorder=100))
     axes[3].set_xticks(np.arange(0, 1.2, 0.2))
     axes[3].set_xlabel('time (s)')
-    axes[3].set_ylabel('normalized\nfiring rate (a.u.)')
+    axes[3].set_ylabel('y')
     axes[3].set_yticks([0, 1])
 
     fig.tight_layout()
@@ -180,7 +180,7 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
     hid_res_map = axes[0].pcolormesh(times, range(1, n_hidden + 1),
                                      h_units.T, cmap='Greys',
                                      vmin=0, vmax=1)
-    axes[0].set_title('hidden unit\nresponses')
+    axes[0].set_title('hidden layer\nresponse')
     axes[0].set_ylabel('unit #')
     axes[0].set_yticks([1, n_hidden])
     cbar_0 = fig.colorbar(hid_res_map, ax=axes[0], ticks=[-1, 0, 1])
@@ -189,7 +189,7 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
     syn_eff_map = axes[1].pcolormesh(times, range(1, n_hidden + 1),
                                      syn_eff.T, cmap='Greys',
                                      vmin=0, vmax=1)
-    axes[1].set_title('synaptic\nefficacy')
+    axes[1].set_title('presynaptic\nefficacy')
     axes[1].set_yticks([1, n_hidden])
     axes[1].set_xlabel('time (s)')
     cbar_1 = fig.colorbar(syn_eff_map, ax=axes[1], ticks=[0, 1])
@@ -204,7 +204,7 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
     peak_times = times[peak_idxs]
     # axes[2].scatter(peak_times, range(1, n_outputs + 1), marker='|',
     #                 c=colors_output, s=80, linewidths=3)
-    axes[2].set_title('output unit\nresponses')
+    axes[2].set_title('output layer\nresponse')
     axes[2].set_yticks([1, n_outputs])
     axes[2].set_xticks([0, 1])
     # axes[2].set_ylabel('normalized\nfiring rate (a.u.)')
