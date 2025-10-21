@@ -200,8 +200,8 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
                                      range(1, n_outputs + 1),
                                      outputs[time_mask, :].T, cmap='RdGy',
                                      vmin=-1, vmax=1)
-    peak_idxs = targets.argmax(dim=0)
-    peak_times = times[peak_idxs]
+    # peak_idxs = targets.argmax(dim=0)
+    # peak_times = times[peak_idxs]
     # axes[2].scatter(peak_times, range(1, n_outputs + 1), marker='|',
     #                 c=colors_output, s=80, linewidths=3)
     axes[2].set_title('output layer\nresponse')

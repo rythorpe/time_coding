@@ -7,48 +7,47 @@ from torch import nn
 
 
 class RNN(nn.Module):
-    def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
+    def __init__(self, n_hidden=300, n_outputs=1,
                  p_rel_range=(0.1, 0.9), conn_rule=None):
         super().__init__()
-        self.n_inputs = n_inputs
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
         self.tau = 0.01  # 10 ms
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
-        self.beta = 18.0
-        self._init_gain = 2.2 / np.mean(p_rel_range)
-        # self._init_gain = 2.2
+        self.beta = 50.0
+        self._init_gain = 1.0 / np.mean(p_rel_range)
         # scale up gain due to decrease in baseline conn strength from p_rel
         self.gain = self._init_gain
         self.activation_gain = 8.0
         self.activation_thresh = 0.5
         prob_c = 0.10
 
-        # constant network parameters
-        self.p_rel = torch.empty(n_hidden)
-        # self.W_ih = torch.empty(n_hidden, n_inputs)
-        self.W_ih = torch.ones(n_hidden, n_inputs)
-        self.W_hh = torch.empty(n_hidden, n_hidden)
-        # self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
-        #                          requires_grad=True)
-
         # varied network parameters
-        self.presyn_scaling = nn.Parameter(torch.ones(n_hidden),
-                                           requires_grad=False)
+        # input -> hidden layer weights + offsets
+        self.W_ih = nn.Parameter(torch.empty(n_hidden, 1),
+                                 requires_grad=True)
+        self.offset_ih = nn.Parameter(torch.zeros(n_hidden),
+                                      requires_grad=True)
+        # recurrent hidden layer postsynaptic weights
+        self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
+                                 requires_grad=True)
+        # hidden -> output layer weights + offsets
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
         self.offset_hz = nn.Parameter(torch.zeros(n_outputs),
                                       requires_grad=True)
 
-        # initialize release probabilities
-        # bounds taken from Tsodyks & Markram PNAS 1997
+        # initialize release probabilities; default bounds taken from
+        # Tsodyks & Markram PNAS 1997
+        self.p_rel = torch.empty(n_hidden)
         torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
+        # scale all postsynaptic targets according to their presynaptic source
+        self.presyn_scaling = torch.ones(n_hidden)
         # self.presyn_scaling = 1 / self.p_rel
 
         # initialize input weights
-        # w_input_std = 1 / np.sqrt(n_hidden)
-        # torch.nn.init.normal_(self.W_ih, mean=0.0, std=w_input_std)
+        torch.nn.init.normal_(self.W_ih, mean=0.0, std=1.0)
 
         # initialize hidden weights
         w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
@@ -105,15 +104,15 @@ class RNN(nn.Module):
         '''
         return torch.sigmoid(gain * (h - thresh))
 
-    def forward(self, x, h_0, r_0=None, u_0=None, dt=0.001,
-                return_deriv=False, include_stp=True,
-                noise_tau=0.01, noise_std=0.0, include_corr_noise=False):
+    def forward(self, I, h_0, r_0, u_0, n_0=None, dt=0.001,
+                return_deriv=False, noise_tau=0.01, noise_std=0.0,
+                include_corr_noise=False):
 
-        # assuming batches x time x n_inputs
-        batch_size, seq_len, _ = x.size()
+        # assuming input has shape (n_trials, n_times, n_hidden)
+        batch_size, seq_len, _ = I.size()
 
         # create matrices for storing time-dependent state variables
-        ext_in_all = torch.zeros(batch_size, seq_len, self.n_hidden)
+        n_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         r_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         u_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         h_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
@@ -121,22 +120,19 @@ class RNN(nn.Module):
 
         # NB: doesn't work on CUDA; due to FORCE training, h_0 is updated
         # regularly in time and therefore lives on the CPU
-        for batch_idx in range(batch_size):
-            n_t_minus_1 = torch.zeros(self.n_hidden)
+        for trial_idx in range(batch_size):
 
             # each batch can theoretically have distinct initial conditions,
             # injected noise, or inputs
-            if r_0 is None or include_stp is False:
-                r_t_minus_1 = torch.ones(self.n_hidden)
+            if n_0 is None:
+                n_t_minus_1 = torch.zeros(self.n_hidden)
             else:
-                r_t_minus_1 = r_0[batch_idx, :]
-            if u_0 is None or include_stp is False:
-                # u_t_minus_1 = torch.ones(self.n_hidden)
-                u_t_minus_1 = self.p_rel
-            else:
-                u_t_minus_1 = u_0[batch_idx, :]
-            h_t_minus_1 = h_0[batch_idx, :]
-            h_transfer = self.transfer_func(h_0[batch_idx, :],
+                n_t_minus_1 = n_0[trial_idx, :]
+            r_t_minus_1 = r_0[trial_idx, :]
+            u_t_minus_1 = u_0[trial_idx, :]
+            h_t_minus_1 = h_0[trial_idx, :]
+
+            h_transfer = self.transfer_func(h_0[trial_idx, :],
                                             gain=self.activation_gain,
                                             thresh=self.activation_thresh)
 
@@ -158,30 +154,19 @@ class RNN(nn.Module):
                         + noise_std * np.sqrt(1.0 / noise_tau)
                         * noise_scaling_fctr * noise_sample)
                 n_t = n_t_minus_1 + dndt * dt
-
-                # total external input, including noise
-                ext_in = x[batch_idx, t_idx, :] @ self.W_ih.T + n_t_minus_1
-                ext_in_all[batch_idx, t_idx, :] = ext_in.clone()
+                n_t_all[trial_idx, t_idx, :] = n_t.clone()
 
                 # pre-syn STP: depletion of resources (depression)
-                if r_0 is None or include_stp is False:
-                    # fix syn resources at init state to silence depression
-                    drdt = torch.zeros_like(r_t_minus_1)
-                else:
-                    drdt = ((1 - r_t_minus_1) / self.tau_depr
-                            - self.beta * u_t_minus_1 * r_t_minus_1 * h_transfer)
+                drdt = ((1 - r_t_minus_1) / self.tau_depr
+                        - self.beta * u_t_minus_1 * r_t_minus_1 * h_transfer)
                 r_t = r_t_minus_1 + drdt * dt
-                r_t_all[batch_idx, t_idx, :] = r_t.clone()
+                r_t_all[trial_idx, t_idx, :] = r_t.clone()
 
                 # pre-syn STP: augmentation of utilization (facilitation)
-                if u_0 is None or include_stp is False:
-                    # fix syn utilization at init state to silence facilitation
-                    dudt = torch.zeros_like(u_t_minus_1)
-                else:
-                    dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                            + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
+                dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
+                        + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
                 u_t = u_t_minus_1 + dudt * dt
-                u_t_all[batch_idx, t_idx, :] = u_t.clone()
+                u_t_all[trial_idx, t_idx, :] = u_t.clone()
 
                 # calculate total transfer weight
                 effective_weight = (r_t_minus_1 * u_t_minus_1 *
@@ -189,11 +174,12 @@ class RNN(nn.Module):
                                     self.gain * self.W_hh * self.W_hh_mask)
 
                 # post-synaptic integration
+                ext_in = I[trial_idx, t_idx, :] @ self.W_ih.T + self.offset_ih + n_t_minus_1
                 dhdt = (-h_t_minus_1
                         + h_transfer @ effective_weight.T
                         + ext_in) / self.tau
                 h_t = h_t_minus_1 + dhdt * dt
-                h_t_all[batch_idx, t_idx, :] = h_t.clone()
+                h_t_all[trial_idx, t_idx, :] = h_t.clone()
 
                 # compute firing rate response (h) here so that it can be
                 # passed to both z (output unit) on the current time step and
@@ -201,7 +187,7 @@ class RNN(nn.Module):
                 h_transfer = self.transfer_func(h_t,
                                                 gain=self.activation_gain,
                                                 thresh=self.activation_thresh)
-                z_t_all[batch_idx, t_idx, :] = (h_transfer @ self.W_hz.T
+                z_t_all[trial_idx, t_idx, :] = (h_transfer @ self.W_hz.T
                                                 + self.offset_hz)
 
                 # save for next time step
@@ -213,4 +199,4 @@ class RNN(nn.Module):
         if return_deriv is True:
             return dhdt, drdt, dudt
         else:
-            return ext_in_all, h_t_all, r_t_all, u_t_all, z_t_all
+            return n_t_all, h_t_all, r_t_all, u_t_all, z_t_all

@@ -11,26 +11,45 @@ from scipy import optimize
 import torch
 from torch import nn
 
-from utils import get_gaussian_targets, get_commit_hash, get_timestamp
+from utils import (get_gaussian_targets, get_commit_hash, get_timestamp,
+                   est_dimensionality)
 from models import RNN
-from train import sim_batch
+from train import sim_batch, train_bptt, test_and_get_stats
+from viz import plot_state_traj, plot_all_units
 
 
-noise_tau_range = 10 ** np.linspace(-2, 0, 5)
-noise_std_range = 10 ** np.linspace(-7, -3, 5)
+noise_tau_vals = 10 ** np.linspace(-2, 0, 11)
+noise_std_vals = np.linspace(1e-2, 1e-1, 10)
+beta_vals = np.linspace(0, 100, 5)
+p_rel_range_vals = [0, 1, 2]
 
-sim_params_all = list()
-for noise_tau in noise_tau_range:
-    for noise_std in noise_std_range:
-        # tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range
-        sim_params_all.append([0.01, False, noise_tau, noise_std, False, 2])
-        sim_params_all.append([0.01, True, noise_tau, noise_std, False, 2])
+params_between_net = list()
+params_between_net_keys = ['p_rel_range']
+for p_rel_range in p_rel_range_vals:
+    # p_rel_range
+    params_between_net.append([p_rel_range])
 
-n_random_nets = 3
-n_jobs = 1
-n_trials = 50
-# output_dir = '/projects/ryth7446/time_coding_output'
-output_dir = '/home/ryan/Desktop'
+params_train = list()
+params_train_keys = ['beta']
+for beta in beta_vals:
+    # beta
+    params_train.append([beta])
+
+params_test = list()
+params_test_keys = ['noise_tau', 'noise_std']
+for noise_tau in noise_tau_vals:
+    for noise_std in noise_std_vals:
+        # noise_tau, noise_std
+        params_test.append([noise_tau, noise_std])
+
+n_random_nets = 20
+n_jobs = 32
+n_test_trials = 20
+output_dir = '/projects/ryth7446/time_coding_output'
+# n_random_nets = 2
+# n_jobs = 6
+# n_test_trials = 20
+# output_dir = '/home/ryan/time_coding/data'
 
 
 def adjust_gain_stp(model, times, dt, n_steps=8):
@@ -40,37 +59,34 @@ def adjust_gain_stp(model, times, dt, n_steps=8):
     '''
 
     # define inputs (for contextual modulation / recurrent perturbations)
-    # NB: simulates a single trial between adjustments
-    n_inputs = model.n_inputs
+    n_trials = 1  # simulates a single trial between adjustments
     n_hidden = model.n_hidden
     n_outputs = model.n_outputs
     n_times = len(times)
-    inputs = torch.zeros((1, n_times, n_inputs))
+    inputs = torch.zeros((1, n_times, 1))
     perturb_dur = 0.05  # 50 ms
     perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
-    inputs[:, perturb_win_mask, :] = 0.1
-    noise_tau = 0.01
-    noise_std = 0.0
-    include_corr_noise = False
+    inputs[:, perturb_win_mask, :] = 1.0
 
     # define output targets
     # set std s.t. amplitude decays to 1/e at intersection with next target
     targ_std = 0.05 / np.sqrt(2)  # ~35 ms
     # tile center of target delays spanning sim duration (minus margins)
-    delay_times = np.linspace(0.1, 1.0, n_outputs)
+    delay_times = np.linspace(1 / n_outputs, 1.0, n_outputs)
     targets = get_gaussian_targets(1, delay_times, times, targ_std)
 
     # set initial conditions of recurrent units fixed across iterations of
     # training and testing
     h_0 = torch.zeros(n_hidden)  # steady-state for postsyn activity var
-    h_0 = torch.tile(h_0, (1, 1))  # replicate for each batch
+    h_0 = torch.tile(h_0, (n_trials, 1))  # replicate for each batch
     r_0 = torch.ones(n_hidden)  # steady-state for depression var
-    r_0 = torch.tile(r_0, (1, 1))
+    r_0 = torch.tile(r_0, (n_trials, 1))
     u_0 = model.p_rel.detach()  # steady-state for facilitation var
-    u_0 = torch.tile(u_0, (1, 1))
+    u_0 = torch.tile(u_0, (n_trials, 1))
 
     # run opt routine
     # move to desired device
+    device = 'cpu'
     inputs = inputs.to(device)
     targets = targets.to(device)
     h_0 = h_0.to(device)
@@ -80,24 +96,23 @@ def adjust_gain_stp(model, times, dt, n_steps=8):
     # move to desired device
     model.to(device)
 
+    init_beta = model.beta
+
     # (re)set gain to its baseline value
     model.gain = model._init_gain
 
     # slowly inclrease STP beta param, turning up gain adjustment accordingly
-    beta_steps = torch.linspace(0, model.beta, n_steps + 1)
     gain_vals = list()
-    for beta in beta_steps:
-        model.beta = beta
+    for beta_fraction in torch.linspace(0, 1, n_steps + 1):
+        model.beta = init_beta * beta_fraction
 
         # adjust beta twice for each incremental increase in beta
         for update_idx in range(2):
             state_vars_, _ = sim_batch(inputs, targets, times, model, loss_fn,
                                        h_0, r_0, u_0, dt=dt,
-                                       include_stp=True,
-                                       noise_tau=noise_tau,
-                                       noise_std=noise_std,
-                                       include_corr_noise=include_corr_noise)
-            ext_in_, hidden_sr_t_, r_t_, u_t_, output_sr_t_ = state_vars_
+                                       noise_tau=0.01,
+                                       noise_std=0.0)
+            n_t_, hidden_sr_t_, r_t_, u_t_, output_sr_t_ = state_vars_
             syn_eff_ = r_t_ * u_t_
             adjustment_fctr = model.p_rel.mean() / syn_eff_.mean()
             model.gain = model._init_gain * adjustment_fctr
@@ -106,63 +121,16 @@ def adjust_gain_stp(model, times, dt, n_steps=8):
     return gain_vals
 
 
-def sim_net(model, loss_fn, times,
-            tau, include_stp, noise_tau, noise_std, include_corr_noise,
-            p_rel_range, adjusted_gain,
-            n_trials=100, dt=1e-3,
-            device='cpu'):
+def test_trained_net(inputs, targets, times, model, loss_fn,
+                     h_0, r_0, u_0, dt, noise_tau, noise_std,
+                     include_corr_noise=False, plot=False):
     '''Train current instantiation of network model.
 
     Returns network parameters and variables for a batch of sim trials.
     '''
 
-    # define inputs
-    n_inputs = model.n_inputs
-    n_hidden = model.n_hidden
-    n_outputs = model.n_outputs
-    n_times = len(times)
-    inputs = torch.zeros((n_trials, n_times, n_inputs))
-    perturb_dur = 0.05  # 50 ms
-    perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
-    inputs[:, perturb_win_mask, :] = 0.1
-
-    model.tau = tau
-    if model.tau > 0.01:
-        # increase input strength
-        inputs[:, perturb_win_mask, :] = 0.3
-    if include_stp:
-        model.gain = adjusted_gain
-    else:
-        model.gain = model._init_gain
-    if p_rel_range == 2:
-        p_rel_range = (0.1, 0.9)  # high heterogeneity
-    elif p_rel_range == 1:
-        p_rel_range = (0.4, 0.6)  # low heterogeneity
-    elif p_rel_range == 0:
-        p_rel_range = (0.5, 0.5)  # homogeneous
-    torch.nn.init.uniform_(model.p_rel, a=p_rel_range[0], b=p_rel_range[1])
-
-    # define output targets
-    # set std s.t. amplitude decays to 1/e at intersection with next target
-    targ_std = 0.05 / np.sqrt(2)  # ~35 ms
-    # tile center of target delays spanning sim duration (minus margins)
-    delay_times = np.linspace(0.1, 1.0, n_outputs)
-    targets = get_gaussian_targets(n_trials, delay_times, times, targ_std)
-
-    # set initial conditions of recurrent units fixed across iterations of
-    # training and testing
-    # h_0 = torch.tensor(sol.x[:n_hidden], dtype=torch.float32)
-    h_0 = torch.zeros(n_hidden)
-    h_0 = torch.tile(h_0, (n_trials, 1))  # replicate for each batch
-    # r_0 = torch.tensor(sol.x[n_hidden:2 * n_hidden], dtype=torch.float32)
-    r_0 = torch.ones(n_hidden) 
-    r_0 = torch.tile(r_0, (n_trials, 1))
-    # u_0 = torch.tensor(sol.x[2 * n_hidden:3 * n_hidden], dtype=torch.float32)
-    u_0 = model.p_rel.detach()
-    u_0 = torch.tile(u_0, (n_trials, 1))
-
-    # run opt routine
-    # move to desired device
+    # ensure tensors have been moved to desired device prior to forward-pass
+    device = 'cpu'
     model.to(device)
     inputs = inputs.to(device)
     targets = targets.to(device)
@@ -170,19 +138,52 @@ def sim_net(model, loss_fn, times,
     r_0 = r_0.to(device)
     u_0 = u_0.to(device)
 
-    state_vars_raw, _ = sim_batch(
-        inputs, targets, times, model, loss_fn, h_0, r_0, u_0, dt,
-        include_stp=include_stp, noise_tau=noise_tau,
-        noise_std=noise_std, include_corr_noise=include_corr_noise)
+    state_vars_raw = sim_batch(
+        inputs=inputs,
+        model=model,
+        h_0=h_0,
+        r_0=r_0,
+        u_0=u_0,
+        dt=dt,
+        noise_tau=noise_tau,
+        noise_std=noise_std,
+        include_corr_noise=include_corr_noise
+        )
 
-    ext_in, h_t, r_t, u_t, z_t = state_vars_raw
-    state_vars = (ext_in.detach().numpy(),
-                  model.transfer_func(h_t).detach().numpy(),
-                  r_t.detach().numpy(),
-                  u_t.detach().numpy(),
-                  z_t.detach().numpy())
+    n_t, h_t, r_t, u_t, z_t = state_vars_raw
+    hidden_sr_test = model.transfer_func(h_t).detach()
+    mse = loss_fn(z_t, targets)
+    
+    trial_dims = list()
+    for batch_trial in hidden_sr_test:
+        trial_dims.append(est_dimensionality(batch_trial[times > 0, :]))
+    batch_dim = np.mean(trial_dims)
 
-    return state_vars
+    metrics = {'mse': mse, 'dim_index': batch_dim}
+
+    if plot is True:
+        ext_in_trial = (inputs[0] @ model.W_ih.T + model.offset_ih + n_t[0]).detach().numpy()
+        hidden_sr_trial = model.transfer_func(h_t).detach().numpy()[0]
+        syn_eff_trial = r_t.detach().numpy()[0] * u_t.detach().numpy()[0]
+        outputs_trial = z_t.detach().numpy()[0]
+        targets_trial = targets.detach().numpy()[0]
+
+        fig_traj = plot_state_traj(perturb=ext_in_trial,
+                                   h_units=hidden_sr_trial,
+                                   syn_eff=syn_eff_trial,
+                                   outputs=outputs_trial,
+                                   targets=targets_trial,
+                                   times=times)
+        fig_state = plot_all_units(h_units=hidden_sr_trial,
+                                   syn_eff=syn_eff_trial,
+                                   outputs=outputs_trial,
+                                   targets=targets_trial,
+                                   times=times)
+        figs = (fig_traj, fig_state)
+    else:
+        figs = None
+
+    return metrics, figs
 
 
 def loss_fn(output, target):
@@ -190,99 +191,227 @@ def loss_fn(output, target):
     return mse_fn(output, target) / (target ** 2).mean()
 
 
-def eval_net_instance(sim_params_all, net_idx):
-    '''Sweeps over sim params for a given random net, then saves output.'''
+def eval_net_instance(param_net, params_train, params_test, net_idx):
+    '''Sweeps over training conditions for a given random net, then runs tests
+     each trained net and saves important metrics for each test condition.'''
+    
+    p_rel_range = param_net[0]
+
+    
+    # create HDF5 file for saving results
+    fname_local = ('data_' + f'net{net_idx:02d}_' +
+                   get_commit_hash() + '_' + get_timestamp() + '.hdf5')
+    fname_absolute = op.join(output_dir, fname_local)
+    file = h5py.File(fname_absolute, 'a')
+    file.create_dataset('net_condition_keys', data=params_between_net_keys)
+    for net_param_idx, net_param_key in enumerate(params_between_net_keys):
+        file.create_dataset(net_param_key, data=param_net[net_param_idx])
+
     # set simulation parameters
-    dt = 1e-3  # 1 ms
+    dt = 5e-3  # 1 ms
     tstop = 1.2  # 1 sec
     times = np.arange(-0.1 + dt, tstop + dt, dt)
     n_times = len(times)
 
-    # create network and scale up gain to accomodate STP
-    n_inputs, n_hidden, n_outputs = 1, 500, 10
+    # define network hyperparameters
+    n_hidden, n_outputs = 500, 10
+    if p_rel_range == 2:
+        p_rel_range = (0.1, 0.9)  # high heterogeneity
+    elif p_rel_range == 1:
+        p_rel_range = (0.4, 0.6)  # low heterogeneity
+    elif p_rel_range == 0:
+        p_rel_range = (0.5, 0.5)  # homogeneous
+
+    # define input to network
+    n_trials = 1
+    inputs = torch.zeros((n_trials, n_times, 1))
+    perturb_dur = 0.05  # 50 ms
+    perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
+    inputs[:, perturb_win_mask, :] = 1.0
+
+    # define output targets
+    # set std s.t. amplitude decays to 1/e at intersection with next target
+    targ_std = 0.05 / np.sqrt(2)  # ~35 ms
+    # tile center of target delays spanning sim duration (minus margins)
+    delay_times = np.linspace(1 / n_outputs, 1.0, n_outputs)
+    targets = get_gaussian_targets(n_trials, delay_times, times, targ_std)
+
+    print(f'begin training session for net instance {net_idx}')
+
+    # instantiate random network; resample if training is unstable
     sample_new_net = True
     while sample_new_net is True:
         # instantiate network
-        model = RNN(n_inputs=n_inputs, n_hidden=n_hidden,
-                    n_outputs=n_outputs)
+        model = RNN(n_hidden=n_hidden, n_outputs=n_outputs,
+                    p_rel_range=p_rel_range, conn_rule=None)
+        
+        # save initial network parameters
+        learned_params_init = {
+            'W_ih': model.W_ih.data.detach().clone(),
+            'offset_ih': model.offset_ih.data.detach().clone(),
+            'W_hh': model.W_hh.data.detach().clone(),
+            'W_hh_mask': model.W_hh_mask.detach().clone(),  # this one is static
+            'W_hz': model.W_hz.data.detach().clone(),
+            'offset_hz': model.offset_hz.data.detach().clone(),
+            'p_rel': model.p_rel.detach().clone()  # also static
+            }
+        for key, val in learned_params_init.items():
+            file.create_dataset(key, data=val)
 
-        # run gain adjustment; modifies gain in-place
-        print('start: gain adjustment')
-        gains = adjust_gain_stp(model, times, n_steps=8, dt=dt)
-        print('end: gain adjustment')
+        # instantiate optimizer (with refs to model params undergoing training)
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-        # check for an abberant drop in gain; if not, pass
-        gain_diffs = np.diff(gains)
-        increases = gain_diffs[gain_diffs > 0]
-        decreases = gain_diffs[gain_diffs <= 0]
-        if np.abs(decreases).max() < 2 * increases.max():
-            sample_new_net = False
-        else:
-            print('warning: resampling network')
+        # set initial conditions of recurrent units fixed across iterations of
+        # training and testing
+        # h_0 = torch.tensor(sol.x[:n_hidden], dtype=torch.float32)
+        h_0 = torch.zeros(n_hidden)
+        h_0 = torch.tile(h_0, (n_trials, 1))  # replicate for each batch
+        # r_0 = torch.tensor(sol.x[n_hidden:2 * n_hidden], dtype=torch.float32)
+        r_0 = torch.ones(n_hidden) 
+        r_0 = torch.tile(r_0, (n_trials, 1))
+        # u_0 = torch.tensor(sol.x[2 * n_hidden:3 * n_hidden], dtype=torch.float32)
+        u_0 = model.p_rel.detach()
+        u_0 = torch.tile(u_0, (n_trials, 1))
 
-    # save adjusted gain value for later
-    adjusted_gain = gains[-1]
+        # ensure tensors are located on appropriate device
+        device = 'cpu'
+        model.to(device)
+        inputs = inputs.to(device)
+        targets = targets.to(device)
+        h_0 = h_0.to(device)
+        r_0 = r_0.to(device)
+        u_0 = u_0.to(device)
 
-    n_sims = len(sim_params_all)
-    model_params = {'W_hz': model.W_hz.data.detach().clone(),
-                    'offset_hz': model.offset_hz.data.detach().clone()}
-    state_vars_all = {'ext_in': np.empty((n_sims, n_trials, n_times,
-                                          n_hidden), dtype=np.float32),
-                      'h_sp': np.empty((n_sims, n_trials, n_times,
-                                        n_hidden), dtype=np.float32),
-                      'r': np.empty((n_sims, n_trials, n_times,
-                                     n_hidden), dtype=np.float32),
-                      'u': np.empty((n_sims, n_trials, n_times,
-                                     n_hidden), dtype=np.float32)}
+        # train network
+        for training_cond_idx, param_train in enumerate(params_train):
 
-    for sim_idx, sim_params in enumerate(sim_params_all):
-        tau, include_stp, noise_tau, noise_std, include_corr_noise, p_rel_range = sim_params
+            # set controlled training (pre-learning) params
+            # NB: beta controls strength of STP
+            beta = param_train[0]
 
-        print(f'start: simulated trials for network condition {sim_idx}')
-        state_vars = sim_net(
-            model=model,
-            loss_fn=loss_fn,
-            times=times,
-            tau=tau,
-            include_stp=include_stp,
-            noise_tau=noise_tau,
-            noise_std=noise_std,
-            include_corr_noise=include_corr_noise,
-            p_rel_range=p_rel_range,
-            adjusted_gain=adjusted_gain,
-            n_trials=n_trials,
-            dt=dt,
-            device=device)
-        print(f'end: simulated trials for network condition {sim_idx}')
+            # create subdirectory (i.e., HDF5 'group') in which to save results
+            # for this realization of the trained network
+            training_grp = file.create_group(f'training_cond{training_cond_idx}')
+            for training_param_idx, training_param_key in enumerate(params_train_keys):
+                training_grp.create_dataset(training_param_key, data=param_train[training_param_idx])
 
-        state_vars_all['ext_in'][sim_idx] = state_vars[0]
-        state_vars_all['h_sp'][sim_idx] = state_vars[1]
-        state_vars_all['r'][sim_idx] = state_vars[2]
-        state_vars_all['u'][sim_idx] = state_vars[3]
+            # (re)set network weights
+            with torch.no_grad():
+                model.W_ih.copy_(learned_params_init['W_ih'])
+                model.offset_ih.copy_(learned_params_init['offset_ih'])
+                model.W_hh.copy_(learned_params_init['W_hh'])
+                model.W_hz.copy_(learned_params_init['W_hz'])
+                model.offset_hz.copy_(learned_params_init['offset_hz'])
 
-    # save simulation data in HDF5 file within output directory
-    fname_local = ('sim_data_' + f'net{net_idx:02d}_' +
-                   get_commit_hash() + '_' + get_timestamp() + '.hdf5')
-    fname_absolute = op.join(output_dir, fname_local)
-    with h5py.File(fname_absolute, 'w') as f_write:
-        f_write.create_dataset('sim_params', data=np.array(sim_params_all))
-        for key, val in model_params.items():
-            f_write.create_dataset(key, data=val)
-        for key, val in state_vars_all.items():
-            f_write.create_dataset(key, data=val)
+            model.beta = beta
+
+            # train network weights
+            n_training_trials = 2000
+            noise_tau = dt  # train with Gaussian white noise by setting noise_tau -> dt
+            noise_std = 1e-2
+            loss_per_iter = list()
+            for trial_idx in range(n_training_trials):
+                
+                loss, _, _ = train_bptt(
+                    inputs, targets, times, model, loss_fn, optimizer,
+                    h_0, r_0, u_0, dt=dt,
+                    noise_tau=noise_tau, noise_std=noise_std,
+                    include_corr_noise=False
+                    )
+                loss_per_iter.append(loss)
+
+            # get loss after final update
+            # plot model output after training
+            _, sim_stats_post = test_and_get_stats(
+                inputs, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
+                noise_tau=noise_tau, noise_std=noise_std,
+                include_corr_noise=False, plot=False
+                )
+            final_loss = sim_stats_post['loss']
+            if np.isfinite(final_loss):
+                sample_new_net = False
+            else:
+                print('warning: resampling network')
+                break
+            loss_per_iter.append(final_loss)
+            # save loss trajectory
+            training_grp.create_dataset('loss', data=loss_per_iter)
+            
+            # save final trained network parameters
+            learned_params_final = {
+                'W_ih': model.W_ih.data.detach().clone(),
+                'offset_ih': model.offset_ih.data.detach().clone(),
+                'W_hh': model.W_hh.data.detach().clone(),
+                'W_hz': model.W_hz.data.detach().clone(),
+                'offset_hz': model.offset_hz.data.detach().clone()
+                }
+            for key, val in learned_params_final.items():
+                training_grp.create_dataset(key, data=val)
+
+            # now, test trained network and save metrics
+            mse = list()
+            dim_index = list()
+            # pow_spec = list()
+            for test_idx, param_test in enumerate(params_test):
+                noise_tau, noise_std = param_test
+
+                inputs_batch = torch.tile(inputs, dims=(n_test_trials, 1, 1))
+                targets_batch = torch.tile(targets, dims=(n_test_trials, 1, 1))
+                h_0_batch = torch.tile(h_0, dims=(n_test_trials, 1))
+                r_0_batch = torch.tile(r_0, dims=(n_test_trials, 1))
+                u_0_batch = torch.tile(u_0, dims=(n_test_trials, 1))
+                
+                # select subset of conditions to plot and save example sims
+                plot = (noise_tau in [1e-2, 1e0] and
+                        noise_std in [1e-2, 1e-1] and
+                        model.beta in [0.0, 50.0] and
+                        net_idx < 6)
+
+                metrics, figs = test_trained_net(
+                    inputs=inputs_batch,
+                    targets=targets_batch,
+                    times=times,
+                    model=model,
+                    loss_fn=loss_fn,
+                    h_0=h_0_batch,
+                    r_0=r_0_batch,
+                    u_0=u_0_batch,
+                    dt=dt,
+                    noise_tau=noise_tau,
+                    noise_std=noise_std,
+                    plot=plot
+                    )
+                mse.append(metrics['mse'])
+                dim_index.append(metrics['dim_index'])
+                # pow_spec.append(metrics['pow_spec'])
+                if plot is True:
+                    fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:.2f}_std{noise_std:.2f}_tau{noise_tau:.2f}.png'
+                    figs[0].savefig(op.join(output_dir, fname_traj_fig))
+                    fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:.2f}_std{noise_std:.2f}_tau{noise_tau:.2f}.png'
+                    figs[1].savefig(op.join(output_dir, fname_state_fig))
+
+            for test_param_idx, test_param_key in enumerate(params_test_keys):
+                test_param_vals = np.array(params_test)[:, test_param_idx]
+                training_grp.create_dataset(test_param_key,
+                                            data=test_param_vals)
+
+            training_grp.create_dataset('mse', data=mse)
+            training_grp.create_dataset('dim_index', data=dim_index)
+            # training_grp.create_dataset('pow_spec', data=dim_index)
+
+    print(f'training + eval of net instance {net_idx} complete')
 
 
 if __name__ == '__main__':
-    # set meta-parameters
-    # for plotting style
-    custom_params = {'axes.spines.right': False, 'axes.spines.top': False}
-    sns.set_theme(style='ticks', rc=custom_params)
-    # for pytorch tensors
-    device = 'cpu'
-    # for reproducibility; numpy is for model sparse conns
+
+    # seed state for reproducibility; numpy is for model sparse conns
     torch.random.manual_seed(93214)
     np.random.seed(35107)
 
+    params_between_net = np.tile(params_between_net, (n_random_nets, 1))
+    n_total_nets = params_between_net.shape[0]
+
     Parallel(n_jobs=n_jobs)(delayed(eval_net_instance)
-                            (sim_params_all, net_idx)
-                            for net_idx in range(n_random_nets))
+                            (params_between_net[net_idx], params_train,
+                             params_test, net_idx)
+                            for net_idx in range(n_total_nets))
