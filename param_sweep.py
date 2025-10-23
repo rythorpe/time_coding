@@ -215,11 +215,11 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     # define network hyperparameters
     n_hidden, n_outputs = 500, 10
     if p_rel_range == 2:
-        p_rel_range = (0.1, 0.9)  # high heterogeneity
+        p_rel_range = (0.1, 0.6)  # high heterogeneity
     elif p_rel_range == 1:
-        p_rel_range = (0.4, 0.6)  # low heterogeneity
+        p_rel_range = (0.3, 0.4)  # low heterogeneity
     elif p_rel_range == 0:
-        p_rel_range = (0.5, 0.5)  # homogeneous
+        p_rel_range = (0.35, 0.35)  # homogeneous
 
     # define input to network
     n_trials = 1
