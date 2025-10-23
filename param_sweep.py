@@ -152,7 +152,7 @@ def test_trained_net(inputs, targets, times, model, loss_fn,
 
     n_t, h_t, r_t, u_t, z_t = state_vars_raw
     hidden_sr_test = model.transfer_func(h_t).detach()
-    mse = loss_fn(z_t, targets)
+    mse = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
     
     trial_dims = list()
     for batch_trial in hidden_sr_test:
@@ -203,7 +203,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                    get_commit_hash() + '_' + get_timestamp() + '.hdf5')
     fname_absolute = op.join(output_dir, fname_local)
     file = h5py.File(fname_absolute, 'a')
-    file.create_dataset('net_condition_keys', data=params_between_net_keys)
     for net_param_idx, net_param_key in enumerate(params_between_net_keys):
         file.create_dataset(net_param_key, data=param_net[net_param_idx])
 
