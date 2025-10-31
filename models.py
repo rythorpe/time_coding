@@ -16,7 +16,8 @@ class RNN(nn.Module):
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
         self.beta = 50.0
-        self._init_gain = 1.0 / np.mean(p_rel_range)
+        # self._init_gain = 1.0 / np.mean(p_rel_range)
+        self._init_gain = 1.0
         # scale up gain due to decrease in baseline conn strength from p_rel
         self.gain = self._init_gain
         self.activation_gain = 8.0
@@ -36,15 +37,27 @@ class RNN(nn.Module):
         self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
                                  requires_grad=True)
         self.offset_hz = nn.Parameter(torch.zeros(n_outputs),
-                                      requires_grad=True)
+                                      requires_grad=False)
 
         # initialize release probabilities; default bounds taken from
         # Tsodyks & Markram PNAS 1997
-        self.p_rel = torch.empty(n_hidden)
-        torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
+        # self.p_rel = torch.empty(n_hidden)
+        # torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
+        p_rel_mean = 0.35
+        p_rel_std = 0.15
+        self.p_rel = torch.randn(n_hidden) * p_rel_std + p_rel_mean
+        resample = True
+        while resample is True:
+            stuff = torch.logical_or(self.p_rel <= 0, self.p_rel > 1)
+            n_resample = stuff.sum()
+            if n_resample > 0:
+                self.p_rel[stuff] = torch.randn(n_resample) * p_rel_std + p_rel_mean
+            else:
+                resample = False
+
         # scale all postsynaptic targets according to their presynaptic source
-        self.presyn_scaling = torch.ones(n_hidden)
-        # self.presyn_scaling = 1 / self.p_rel
+        # self.presyn_scaling = torch.ones(n_hidden)
+        self.presyn_scaling = 1 / self.p_rel
 
         # initialize input weights
         torch.nn.init.normal_(self.W_ih, mean=0.0, std=1.0)
@@ -54,30 +67,31 @@ class RNN(nn.Module):
         if conn_rule is None:
             torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
         else:
-            for target_idx in range(self.n_hidden):
-                source_weights = torch.randn(self.n_hidden) * w_hidden_std
-                # sort according to decending weight strength
-                weight_sort_idxs = torch.argsort(source_weights.abs(),
-                                                 descending=True)
-                if conn_rule == 'p_rel_cluster':
-                    # strong inter-connectivity between units of similar p_rel
-                    order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
-                    # sources with p_rel similar to that of target will receive early position in sorted set
-                    source_sort_idxs = order_metric.argsort(descending=False)
-                elif conn_rule == 'p_rel_anticluster':
-                    # strong inter-connectivity between units of dissimilar p_rel
-                    order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
-                    source_sort_idxs = order_metric.argsort(descending=True)
-                elif conn_rule == 'p_rel_corr':
-                    # connection strength correlates with presynaptic p_rel
-                    order_metric = self.p_rel.clone()
-                    source_sort_idxs = order_metric.argsort(descending=True)
-                elif conn_rule == 'p_rel_anticorr':
-                    # connection strength anticorrelates with presynaptic p_rel
-                    order_metric = self.p_rel.clone()
-                    source_sort_idxs = order_metric.argsort(descending=False)
-                # assign sorted source weights
-                self.W_hh[target_idx, source_sort_idxs] = source_weights[weight_sort_idxs]
+            with torch.no_grad():
+                for target_idx in range(self.n_hidden):
+                    source_weights = torch.randn(self.n_hidden) * w_hidden_std
+                    # sort according to decending weight strength
+                    weight_sort_idxs = torch.argsort(source_weights.abs(),
+                                                    descending=True)
+                    if conn_rule == 'p_rel_cluster':
+                        # strong inter-connectivity between units of similar p_rel
+                        order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
+                        # sources with p_rel similar to that of target will receive early position in sorted set
+                        source_sort_idxs = order_metric.argsort(descending=False)
+                    elif conn_rule == 'p_rel_anticluster':
+                        # strong inter-connectivity between units of dissimilar p_rel
+                        order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
+                        source_sort_idxs = order_metric.argsort(descending=True)
+                    elif conn_rule == 'p_rel_corr':
+                        # connection strength correlates with presynaptic p_rel
+                        order_metric = self.p_rel.clone()
+                        source_sort_idxs = order_metric.argsort(descending=True)
+                    elif conn_rule == 'p_rel_anticorr':
+                        # connection strength anticorrelates with presynaptic p_rel
+                        order_metric = self.p_rel.clone()
+                        source_sort_idxs = order_metric.argsort(descending=False)
+                    # assign sorted source weights
+                    self.W_hh[target_idx, source_sort_idxs] = source_weights[weight_sort_idxs]
 
         # create mask for non-zero connections; tuning weights of
         # zeroed connections won't effect model dynamics
@@ -93,9 +107,18 @@ class RNN(nn.Module):
         w_output_std = 1 / np.sqrt(n_hidden)
         torch.nn.init.normal_(self.W_hz, mean=0.0, std=w_output_std)
 
+        # create mask for specifying hidden subsets that map to distinct outputs
+        # self.W_hz_mask = torch.ones_like(self.W_hz)
+        self.W_hz_mask = torch.zeros_like(self.W_hz)
+        n_sources_per_subset = self.n_hidden // n_outputs
+        for output_idx in range(n_outputs):
+            first_source_idx = n_sources_per_subset * output_idx
+            last_source_idx = n_sources_per_subset * output_idx + n_sources_per_subset
+            self.W_hz_mask[output_idx, first_source_idx:last_source_idx] = 1
+
         # create registered buffers (i.e., fancy attributes that need to live
         # on the same device as self
-        self.register_buffer('noise', torch.zeros(self.n_hidden))
+        # self.register_buffer('noise', torch.zeros(self.n_hidden))
 
     def transfer_func(self, h, gain=8.0, thresh=0.5):
         '''Activation function for single-unit activity in hidden layer.
@@ -187,7 +210,8 @@ class RNN(nn.Module):
                 h_transfer = self.transfer_func(h_t,
                                                 gain=self.activation_gain,
                                                 thresh=self.activation_thresh)
-                z_t_all[trial_idx, t_idx, :] = (h_transfer @ self.W_hz.T
+                output_weight = self.W_hz * self.W_hz_mask
+                z_t_all[trial_idx, t_idx, :] = (h_transfer @ output_weight.T
                                                 + self.offset_hz)
 
                 # save for next time step
