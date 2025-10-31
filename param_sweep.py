@@ -1,4 +1,5 @@
 import os.path as op
+from collections import defaultdict
 
 import h5py
 import numpy as np
@@ -18,10 +19,10 @@ from train import sim_batch, train_bptt, test_and_get_stats
 from viz import plot_state_traj, plot_all_units
 
 
-noise_tau_vals = 10 ** np.linspace(-2, 0, 11)
-noise_std_vals = np.linspace(1e-2, 1e-1, 10)
-beta_vals = np.linspace(0, 100, 5)
-p_rel_range_vals = [0, 1, 2]
+noise_tau_vals = 10 ** np.linspace(-2, 0, 3)
+noise_std_vals = np.linspace(1e-1, 2e-1, 3)
+beta_vals = np.linspace(0, 50, 3)
+p_rel_range_vals = [2]
 
 params_between_net = list()
 params_between_net_keys = ['p_rel_range']
@@ -30,10 +31,12 @@ for p_rel_range in p_rel_range_vals:
     params_between_net.append([p_rel_range])
 
 params_train = list()
-params_train_keys = ['beta']
+params_train_keys = ['beta', 'noise_tau', 'noise_std']
 for beta in beta_vals:
-    # beta
-    params_train.append([beta])
+    for noise_tau in noise_tau_vals:
+        for noise_std in noise_std_vals:
+            # beta, noise_tau, noise_std
+            params_train.append([beta, noise_tau, noise_std])
 
 params_test = list()
 params_test_keys = ['noise_tau', 'noise_std']
@@ -150,16 +153,24 @@ def test_trained_net(inputs, targets, times, model, loss_fn,
         include_corr_noise=include_corr_noise
         )
 
+    # calculate avg features of simulated data across batch trials
     n_t, h_t, r_t, u_t, z_t = state_vars_raw
     hidden_sr_test = model.transfer_func(h_t).detach()
+    syn_eff_test = r_t.detach() * u_t.detach()
+    # error
     mse = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-    
+    # dimensionality of hidden unit responses
     trial_dims = list()
     for batch_trial in hidden_sr_test:
         trial_dims.append(est_dimensionality(batch_trial[times > 0, :]))
     batch_dim = np.mean(trial_dims)
+    # mean spike rate across time
+    mean_rate = hidden_sr_test[:, times > 0, :].mean()
+    # mean synaptic efficacy across time
+    mean_syn_eff = syn_eff_test[:, times > 0, :].mean()
 
-    metrics = {'mse': mse, 'dim_index': batch_dim}
+    metrics = {'mse': mse, 'dim_index': batch_dim, 'mean_rate': mean_rate,
+               'mean_syn_eff': mean_syn_eff}
 
     if plot is True:
         ext_in_trial = (inputs[0] @ model.W_ih.T + model.offset_ih + n_t[0]).detach().numpy()
@@ -243,16 +254,17 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # instantiate network
         model = RNN(n_hidden=n_hidden, n_outputs=n_outputs,
                     p_rel_range=p_rel_range, conn_rule=None)
-        
+
         # save initial network parameters
         learned_params_init = {
             'W_ih': model.W_ih.data.detach().clone(),
             'offset_ih': model.offset_ih.data.detach().clone(),
             'W_hh': model.W_hh.data.detach().clone(),
-            'W_hh_mask': model.W_hh_mask.detach().clone(),  # this one is static
+            'W_hh_mask': model.W_hh_mask.detach().clone(),  # static
             'W_hz': model.W_hz.data.detach().clone(),
+            'W_hz_mask': model.W_hz_mask.detach().clone(),  # static
             'offset_hz': model.offset_hz.data.detach().clone(),
-            'p_rel': model.p_rel.detach().clone()  # also static
+            'p_rel': model.p_rel.detach().clone()  # static
             }
         for key, val in learned_params_init.items():
             file.create_dataset(key, data=val)
@@ -286,7 +298,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # set controlled training (pre-learning) params
             # NB: beta controls strength of STP
-            beta = param_train[0]
+            beta, noise_tau, noise_std = param_train
 
             # create subdirectory (i.e., HDF5 'group') in which to save results
             # for this realization of the trained network
@@ -305,12 +317,12 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             model.beta = beta
 
             # train network weights
-            n_training_trials = 2000
-            noise_tau = dt  # train with Gaussian white noise by setting noise_tau -> dt
-            noise_std = 1e-2
+            n_training_trials = 3000
+            # noise_tau = dt  # train with Gaussian white noise by setting noise_tau -> dt
+            # noise_std = 1e-2
             loss_per_iter = list()
             for trial_idx in range(n_training_trials):
-                
+
                 loss, _, _ = train_bptt(
                     inputs, targets, times, model, loss_fn, optimizer,
                     h_0, r_0, u_0, dt=dt,
@@ -348,11 +360,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 training_grp.create_dataset(key, data=val)
 
             # now, test trained network and save metrics
-            mse = list()
-            dim_index = list()
+            metrics_appended = defaultdict(list)
             # pow_spec = list()
             for test_idx, param_test in enumerate(params_test):
-                noise_tau, noise_std = param_test
+                noise_tau_test, noise_std_test = param_test
 
                 inputs_batch = torch.tile(inputs, dims=(n_test_trials, 1, 1))
                 targets_batch = torch.tile(targets, dims=(n_test_trials, 1, 1))
@@ -362,9 +373,11 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 
                 # select subset of conditions to plot and save example sims
                 plot = (noise_tau in [1e-2, 1e0] and
-                        noise_std in [1e-2, 1e-1] and
+                        noise_tau_test == noise_tau and
+                        noise_std in [1e-1, 2e-1] and
+                        noise_std_test == noise_std_test and
                         model.beta in [0.0, 50.0] and
-                        net_idx < 6)
+                        net_idx < 1)
 
                 metrics, figs = test_trained_net(
                     inputs=inputs_batch,
@@ -376,12 +389,12 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     r_0=r_0_batch,
                     u_0=u_0_batch,
                     dt=dt,
-                    noise_tau=noise_tau,
-                    noise_std=noise_std,
+                    noise_tau=noise_tau_test,
+                    noise_std=noise_std_test,
                     plot=plot
                     )
-                mse.append(metrics['mse'])
-                dim_index.append(metrics['dim_index'])
+                for key, val in metrics.items():
+                    metrics_appended[key].append(val)
                 # pow_spec.append(metrics['pow_spec'])
                 if plot is True:
                     fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:.2f}_std{noise_std:.2f}_tau{noise_tau:.2f}.png'
@@ -394,8 +407,8 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 training_grp.create_dataset(test_param_key,
                                             data=test_param_vals)
 
-            training_grp.create_dataset('mse', data=mse)
-            training_grp.create_dataset('dim_index', data=dim_index)
+            for key, val in metrics_appended.items():
+                training_grp.create_dataset(key, data=val)
             # training_grp.create_dataset('pow_spec', data=dim_index)
 
     print(f'training + eval of net instance {net_idx} complete')
