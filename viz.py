@@ -180,7 +180,7 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
     hid_res_map = axes[0].pcolormesh(times, range(1, n_hidden + 1),
                                      h_units.T, cmap='Greys',
                                      vmin=0, vmax=1)
-    axes[0].set_title('hidden layer\nresponse')
+    axes[0].set_title('hidden layer\nrate')
     axes[0].set_ylabel('unit #')
     axes[0].set_yticks([1, n_hidden])
     cbar_0 = fig.colorbar(hid_res_map, ax=axes[0], ticks=[-1, 0, 1])
@@ -204,7 +204,7 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
     # peak_times = times[peak_idxs]
     # axes[2].scatter(peak_times, range(1, n_outputs + 1), marker='|',
     #                 c=colors_output, s=80, linewidths=3)
-    axes[2].set_title('output layer\nresponse')
+    axes[2].set_title('output layer\nrate')
     axes[2].set_yticks([1, n_outputs])
     axes[2].set_xticks([0, 1])
     # axes[2].set_ylabel('normalized\nfiring rate (a.u.)')
