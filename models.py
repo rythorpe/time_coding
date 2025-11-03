@@ -3,10 +3,9 @@
 import numpy as np
 
 import torch
-from torch import nn
 
 
-class RNN(nn.Module):
+class RNN(torch.nn.Module):
     def __init__(self, n_hidden=300, n_outputs=1,
                  p_rel_range=(0.1, 0.9), conn_rule=None):
         super().__init__()
@@ -26,18 +25,18 @@ class RNN(nn.Module):
 
         # varied network parameters
         # input -> hidden layer weights + offsets
-        self.W_ih = nn.Parameter(torch.empty(n_hidden, 1),
-                                 requires_grad=True)
-        self.offset_ih = nn.Parameter(torch.zeros(n_hidden),
-                                      requires_grad=True)
+        self.W_ih = torch.nn.Parameter(torch.empty(n_hidden, 1),
+                                       requires_grad=True)
+        self.offset_ih = torch.nn.Parameter(torch.zeros(n_hidden),
+                                            requires_grad=True)
         # recurrent hidden layer postsynaptic weights
-        self.W_hh = nn.Parameter(torch.empty(n_hidden, n_hidden),
-                                 requires_grad=True)
+        self.W_hh = torch.nn.Parameter(torch.empty(n_hidden, n_hidden),
+                                       requires_grad=True)
         # hidden -> output layer weights + offsets
-        self.W_hz = nn.Parameter(torch.empty(n_outputs, n_hidden),
-                                 requires_grad=True)
-        self.offset_hz = nn.Parameter(torch.zeros(n_outputs),
-                                      requires_grad=False)
+        self.W_hz = torch.nn.Parameter(torch.empty(n_outputs, n_hidden),
+                                       requires_grad=True)
+        self.offset_hz = torch.nn.Parameter(torch.zeros(n_outputs),
+                                            requires_grad=False)
 
         # initialize release probabilities; default bounds taken from
         # Tsodyks & Markram PNAS 1997
@@ -45,19 +44,22 @@ class RNN(nn.Module):
         # torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
         p_rel_mean = 0.35
         p_rel_std = 0.15
-        self.p_rel = torch.randn(n_hidden) * p_rel_std + p_rel_mean
+        p_rel = torch.randn(n_hidden) * p_rel_std + p_rel_mean
         resample = True
         while resample is True:
-            stuff = torch.logical_or(self.p_rel <= 0, self.p_rel > 1)
+            stuff = torch.logical_or(p_rel <= 0, p_rel > 1)
             n_resample = stuff.sum()
             if n_resample > 0:
-                self.p_rel[stuff] = torch.randn(n_resample) * p_rel_std + p_rel_mean
+                p_rel[stuff] = torch.randn(n_resample) * p_rel_std + p_rel_mean
             else:
                 resample = False
 
         # scale all postsynaptic targets according to their presynaptic source
-        # self.presyn_scaling = torch.ones(n_hidden)
-        self.presyn_scaling = 1 / self.p_rel
+        self.presyn_scaling = torch.ones(n_hidden)
+        # self.presyn_scaling = 1 / p_rel
+
+        # self.p_rel = torch.nn.Parameter(p_rel, requires_grad=True)
+        self.p_rel = p_rel
 
         # initialize input weights
         torch.nn.init.normal_(self.W_ih, mean=0.0, std=1.0)
@@ -72,7 +74,7 @@ class RNN(nn.Module):
                     source_weights = torch.randn(self.n_hidden) * w_hidden_std
                     # sort according to decending weight strength
                     weight_sort_idxs = torch.argsort(source_weights.abs(),
-                                                    descending=True)
+                                                     descending=True)
                     if conn_rule == 'p_rel_cluster':
                         # strong inter-connectivity between units of similar p_rel
                         order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
@@ -148,7 +150,7 @@ class RNN(nn.Module):
             # each batch can theoretically have distinct initial conditions,
             # injected noise, or inputs
             if n_0 is None:
-                n_t_minus_1 = torch.zeros(self.n_hidden)
+                n_t_minus_1 = noise_std * torch.randn(self.n_hidden)
             else:
                 n_t_minus_1 = n_0[trial_idx, :]
             r_t_minus_1 = r_0[trial_idx, :]
