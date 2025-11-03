@@ -132,7 +132,7 @@ def sim_batch(inputs, model, h_0, r_0, u_0,
         noise_ensembles = torch.ones(model.n_outputs)
 
     n_0_mask = noise_ensembles @ model.W_hz_mask
-    n_0 = torch.zeros_like(h_0)
+    n_0 = noise_std * torch.randn_like(h_0)
 
     n_t_all = torch.zeros(n_trials, n_times, model.n_hidden)
     r_t_all = torch.zeros(n_trials, n_times, model.n_hidden)
@@ -149,7 +149,7 @@ def sim_batch(inputs, model, h_0, r_0, u_0,
                                             dt=dt, noise_tau=noise_tau,
                                             noise_std=noise_std,
                                             include_corr_noise=include_corr_noise)
-            
+
             # zero-out noise in select ensembles
             n_t_masked = n_0_mask * n_t[:, -1, :]
 
@@ -177,9 +177,9 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     with torch.no_grad():
         # simulate and calculate total output error
         n_t, h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0,
-                                           dt=dt, noise_tau=noise_tau,
-                                           noise_std=noise_std,
-                                           include_corr_noise=include_corr_noise)
+                                        dt=dt, noise_tau=noise_tau,
+                                        noise_std=noise_std,
+                                        include_corr_noise=include_corr_noise)
         h_sr = model.transfer_func(h_t)
         # loss = loss_fn(h_sr[:, times > 0, :], targets[:, times > 0, :])
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
