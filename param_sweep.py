@@ -20,7 +20,7 @@ from viz import plot_state_traj, plot_all_units
 
 
 noise_tau_vals = 10 ** np.linspace(-2, 0, 3)
-noise_std_vals = np.linspace(1e-1, 2e-1, 3)
+noise_std_vals = np.linspace(1e-1, 3e-1, 3)
 beta_vals = np.linspace(0, 50, 3)
 p_rel_range_vals = [2]
 
