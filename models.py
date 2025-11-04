@@ -53,13 +53,11 @@ class RNN(torch.nn.Module):
                 p_rel[stuff] = torch.randn(n_resample) * p_rel_std + p_rel_mean
             else:
                 resample = False
+        self.p_rel = p_rel
 
         # scale all postsynaptic targets according to their presynaptic source
-        self.presyn_scaling = torch.ones(n_hidden)
-        # self.presyn_scaling = 1 / p_rel
-
-        # self.p_rel = torch.nn.Parameter(p_rel, requires_grad=True)
-        self.p_rel = p_rel
+        # self.presyn_scaling = torch.ones(n_hidden)
+        self.presyn_scaling = 1 / self.p_rel
 
         # initialize input weights
         torch.nn.init.normal_(self.W_ih, mean=0.0, std=1.0)
