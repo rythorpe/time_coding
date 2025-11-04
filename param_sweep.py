@@ -45,15 +45,15 @@ for noise_tau in noise_tau_vals:
         # noise_tau, noise_std
         params_test.append([noise_tau, noise_std])
 
-# n_random_nets = 20
-# n_jobs = 32
-# n_test_trials = 20
-# output_dir = '/projects/ryth7446/time_coding_output'
-n_random_nets = 2
-n_jobs = 2
+n_random_nets = 20
+n_jobs = 32
 n_test_trials = 20
+output_dir = '/projects/ryth7446/time_coding_output'
+# n_random_nets = 2
+# n_jobs = 2
+# n_test_trials = 20
 # output_dir = '/home/ryan/time_coding/data'
-output_dir = '/home/ryan/Desktop'
+# output_dir = '/home/ryan/Desktop'
 
 
 def adjust_gain_stp(model, times, dt, n_steps=8):
