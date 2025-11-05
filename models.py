@@ -26,7 +26,7 @@ class RNN(torch.nn.Module):
         # varied network parameters
         # input -> hidden layer weights + offsets
         self.W_ih = torch.nn.Parameter(torch.empty(n_hidden, 1),
-                                       requires_grad=True)
+                                       requires_grad=False)
         self.offset_ih = torch.nn.Parameter(torch.zeros(n_hidden),
                                             requires_grad=True)
         # recurrent hidden layer postsynaptic weights
