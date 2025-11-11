@@ -202,6 +202,8 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         fig = plot_state_traj(perturb=ext_in_trial, h_units=hidden_sr_trial,
                               syn_eff=syn_eff_trial, outputs=outputs_trial,
                               targets=targets_trial, times=times)
+        axes = fig.get_axes()
+        axes[0].set_ylim([-2, 2])
 
     # calculate metrics-of-interest
     # n_dim = est_dimensionality(hidden_sr_trial)
