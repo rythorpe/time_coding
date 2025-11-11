@@ -6,9 +6,10 @@ import torch
 
 
 class RNN(torch.nn.Module):
-    def __init__(self, n_hidden=300, n_outputs=1,
+    def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
                  p_rel_range=(0.1, 0.9), conn_rule=None):
         super().__init__()
+        self.n_inputs = n_inputs
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
         self.tau = 0.01  # 10 ms
@@ -25,7 +26,7 @@ class RNN(torch.nn.Module):
 
         # varied network parameters
         # input -> hidden layer weights + offsets
-        self.W_ih = torch.nn.Parameter(torch.empty(n_hidden, 1),
+        self.W_ih = torch.nn.Parameter(torch.empty(n_hidden, n_inputs),
                                        requires_grad=False)
         self.offset_ih = torch.nn.Parameter(torch.zeros(n_hidden),
                                             requires_grad=True)
