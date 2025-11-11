@@ -142,39 +142,56 @@ def test_trained_net(inputs, targets, times, model, loss_fn,
     r_0 = r_0.to(device)
     u_0 = u_0.to(device)
 
-    state_vars_raw = sim_batch(
-        inputs=inputs,
-        model=model,
-        h_0=h_0,
-        r_0=r_0,
-        u_0=u_0,
-        dt=dt,
-        noise_tau=noise_tau,
-        noise_std=noise_std,
-        include_corr_noise=include_corr_noise
-        )
+    n_trials, n_times, _ = inputs.shape
+    n_inputs, n_hidden, n_outputs = (model.n_inputs, model.n_hidden,
+                                     model.n_outputs)
 
-    # calculate avg features of simulated data across batch trials
-    n_t, h_t, r_t, u_t, z_t = state_vars_raw
-    hidden_sr_test = model.transfer_func(h_t).detach()
-    syn_eff_test = r_t.detach() * u_t.detach()
-    # error
-    mse = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
-    # dimensionality of hidden unit responses
-    trial_dims = list()
-    for batch_trial in hidden_sr_test:
-        trial_dims.append(est_dimensionality(batch_trial[times > 0, :]))
-    batch_dim = np.mean(trial_dims)
-    # mean spike rate across time
-    mean_rate = hidden_sr_test[:, times > 0, :].mean()
-    # mean synaptic efficacy across time
-    mean_syn_eff = syn_eff_test[:, times > 0, :].mean()
+    mse_vals = list()
+    for trial_idx in range(n_trials):
+        noise_ensembles = torch.ones(n_outputs)
+        # assign left-out ensemble (w/o noise) round-robin
+        noise_ensembles[trial_idx % n_outputs] = 0
 
-    metrics = {'mse': mse, 'dim_index': batch_dim, 'mean_rate': mean_rate,
-               'mean_syn_eff': mean_syn_eff}
+        state_vars_raw = sim_batch(
+            inputs=inputs[trial_idx:trial_idx + 1, ...],
+            model=model,
+            h_0=h_0[trial_idx:trial_idx + 1, ...],
+            r_0=r_0[trial_idx:trial_idx + 1, ...],
+            u_0=u_0[trial_idx:trial_idx + 1, ...],
+            dt=dt,
+            noise_tau=noise_tau,
+            noise_std=noise_std,
+            include_corr_noise=include_corr_noise,
+            noise_ensembles=noise_ensembles
+            )
+
+        # calculate avg features of simulated data across batch trials
+        n_t, h_t, r_t, u_t, z_t = state_vars_raw
+        hidden_sr_test = model.transfer_func(h_t).detach()
+        syn_eff_test = r_t.detach() * u_t.detach()
+        # error
+        read_out_ensemble_mask = noise_ensembles == 0
+        z_t_read_out = z_t[:, :, read_out_ensemble_mask]
+        targets_read_out = targets[:, :, read_out_ensemble_mask]
+        mse = loss_fn(z_t_read_out[:, times > 0, :],
+                      targets_read_out[:, times > 0, :])
+        mse_vals.append(mse)
+        # # dimensionality of hidden unit responses
+        # trial_dims = list()
+        # for batch_trial in hidden_sr_test:
+        #     trial_dims.append(est_dimensionality(batch_trial[times > 0, :]))
+        # batch_dim = np.mean(trial_dims)
+        # # mean spike rate across time
+        # mean_rate = hidden_sr_test[:, times > 0, :].mean()
+        # # mean synaptic efficacy across time
+        # mean_syn_eff = syn_eff_test[:, times > 0, :].mean()
+
+        # metrics = {'mse': mse, 'dim_index': batch_dim, 'mean_rate': mean_rate,
+        #         'mean_syn_eff': mean_syn_eff}
+    metrics = {'mse': np.mean(mse_vals)}
 
     if plot is True:
-        ext_in_trial = (inputs[0] @ model.W_ih.T + model.offset_ih + n_t[0]).detach().numpy()
+        ext_in_trial = (inputs[-1] @ model.W_ih.T + model.offset_ih + n_t[0]).detach().numpy()
         hidden_sr_trial = model.transfer_func(h_t).detach().numpy()[0]
         syn_eff_trial = r_t.detach().numpy()[0] * u_t.detach().numpy()[0]
         outputs_trial = z_t.detach().numpy()[0]
@@ -237,7 +254,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     n_trials = 1
     inputs = torch.zeros((n_trials, n_times, 1))
     perturb_dur = 0.05  # 50 ms
-    perturb_win_mask = np.logical_and(times > -perturb_dur, times < 0)
+    perturb_win_mask = np.logical_and(times >= -perturb_dur, times < 0)
     inputs[:, perturb_win_mask, :] = 1.0
 
     # define output targets
@@ -363,7 +380,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             # now, test trained network and save metrics
             metrics_appended = defaultdict(list)
             # pow_spec = list()
-            for test_idx, param_test in enumerate(params_test):
+            for param_test in params_test:
                 noise_tau_test, noise_std_test = param_test
 
                 inputs_batch = torch.tile(inputs, dims=(n_test_trials, 1, 1))
