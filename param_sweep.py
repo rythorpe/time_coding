@@ -417,8 +417,11 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 if plot is True:
                     fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:.2f}_std{noise_std:.2f}_tau{noise_tau:.2f}.png'
                     figs[0].savefig(op.join(output_dir, fname_traj_fig))
+                    plt.close(figs[0])
                     fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:.2f}_std{noise_std:.2f}_tau{noise_tau:.2f}.png'
                     figs[1].savefig(op.join(output_dir, fname_state_fig))
+                    plt.close(figs[1])
+
 
             for test_param_idx, test_param_key in enumerate(params_test_keys):
                 test_param_vals = np.array(params_test)[:, test_param_idx]
