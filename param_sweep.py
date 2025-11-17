@@ -172,7 +172,7 @@ def test_trained_net(inputs, targets, times, model, loss_fn,
         # error
         read_out_ensemble_mask = noise_ensembles == 0
         z_t_read_out = z_t[:, :, read_out_ensemble_mask]
-        targets_read_out = targets[:, :, read_out_ensemble_mask]
+        targets_read_out = targets[trial_idx:trial_idx + 1, :, read_out_ensemble_mask]
         mse = loss_fn(z_t_read_out[:, times > 0, :],
                       targets_read_out[:, times > 0, :])
         mse_vals.append(mse)
