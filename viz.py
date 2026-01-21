@@ -94,7 +94,7 @@ def plot_learning(losses, max_iter=None):
         ub_xtick = max_iter
     ax.set_xticks([0, ub_xtick])
     ax.set_xlabel('iteration')
-    ax.set_ylabel('loss')
+    ax.set_ylabel('MSE')
     fig.tight_layout()
 
     return fig
@@ -108,8 +108,8 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     time_mask = times > 0
     times_after_zero = times[time_mask]
 
-    n_hidden_plot = 50  # number of hidden units to plot
-    if n_hidden < 50:
+    n_hidden_plot = 10  # number of hidden units to plot
+    if n_hidden < 10:
         n_hidden_plot = n_hidden
 
     fig, axes = plt.subplots(4, 1, sharex=True, figsize=(6, 6))
@@ -121,28 +121,29 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     # injected current
     axes[0].set_prop_cycle(cycler('color', cm_hidden))
     axes[0].plot(times, perturb[:, :n_hidden_plot])
-    perturb_lb = np.min([perturb[:, :n_hidden_plot].min(), -1.0])
-    perturb_ub = np.max([perturb[:, :n_hidden_plot].max(), 1.0])
-    rec_height = perturb_ub - perturb_lb
-    axes[0].add_patch(Rectangle([-0.05, perturb_lb], 0.05, rec_height,
-                                ec='none', fc='k',
-                                alpha=0.2, zorder=100))
+    # perturb_lb = np.min([perturb[:, :n_hidden_plot].min(), -1.0])
+    # perturb_ub = np.max([perturb[:, :n_hidden_plot].max(), 1.0])
+    # rec_height = perturb_ub - perturb_lb
+    # axes[0].add_patch(Rectangle([-0.05, perturb_lb], 0.05, rec_height,
+    #                             ec='none', fc='k',
+    #                             alpha=0.2, zorder=100))
     axes[0].set_ylabel('I + $\mathcal{N}$')
+    # axes[0].set_ylabel('I')
     axes[0].set_yticks([-1, 0, 1])
 
     # recurrent unit trajectories
     axes[1].set_prop_cycle(cycler('color', cm_hidden))
     axes[1].plot(times, h_units[:, :n_hidden_plot])
-    axes[1].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
-                                alpha=0.2, zorder=100))
-    axes[1].set_ylabel('x')
+    # axes[1].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
+    #                             alpha=0.2, zorder=100))
+    axes[1].set_ylabel('f(x)')
     axes[1].set_yticks([0, 1])
 
     # synaptic utilization (from STP)
     axes[2].set_prop_cycle(cycler('color', cm_hidden))
     axes[2].plot(times, syn_eff[:, :n_hidden_plot])
-    axes[2].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
-                                alpha=0.2, zorder=100))
+    # axes[2].add_patch(Rectangle([-0.05, 0], 0.05, 1.0, ec='none', fc='k',
+    #                             alpha=0.2, zorder=100))
     axes[2].set_ylabel('$u{\cdot}r$')
     axes[2].set_yticks([0, 1])
 
@@ -150,12 +151,12 @@ def plot_state_traj(perturb, h_units, syn_eff, outputs, targets, times):
     axes[3].set_prop_cycle(cycler('color', cm_output))
     axes[3].plot(times_after_zero, targets[time_mask, :], lw=2, ls=':')
     axes[3].plot(times, outputs, lw=2)
-    output_lb = outputs.min()
-    output_ub = np.max([outputs.max(), targets.max()])
-    rec_height = output_ub - output_lb
-    axes[3].add_patch(Rectangle([-0.05, output_lb], 0.05, rec_height,
-                                ec='none', fc='k',
-                                alpha=0.2, zorder=100))
+    # output_lb = outputs.min()
+    # output_ub = np.max([outputs.max(), targets.max()])
+    # rec_height = output_ub - output_lb
+    # axes[3].add_patch(Rectangle([-0.05, output_lb], 0.05, rec_height,
+    #                             ec='none', fc='k',
+    #                             alpha=0.2, zorder=100))
     axes[3].set_xticks(np.arange(0, 1.2, 0.2))
     axes[3].set_xlabel('time (s)')
     axes[3].set_ylabel('y')
