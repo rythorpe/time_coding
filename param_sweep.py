@@ -116,7 +116,7 @@ def adjust_gain_stp(model, times, dt, n_steps=8):
                                        h_0, r_0, u_0, dt=dt,
                                        noise_tau=0.01,
                                        noise_std=0.0)
-            n_t_, hidden_sr_t_, r_t_, u_t_, output_sr_t_ = state_vars_
+            hidden_sr_t_, r_t_, u_t_, output_sr_t_ = state_vars_
             syn_eff_ = r_t_ * u_t_
             adjustment_fctr = model.p_rel.mean() / syn_eff_.mean()
             model.gain = model._init_gain * adjustment_fctr
@@ -166,7 +166,7 @@ def test_trained_net(inputs, targets, times, model, loss_fn,
             )
 
         # calculate avg features of simulated data across batch trials
-        n_t, h_t, r_t, u_t, z_t = state_vars_raw
+        h_t, r_t, u_t, z_t = state_vars_raw
         hidden_sr_test = model.transfer_func(h_t).detach()
         syn_eff_test = r_t.detach() * u_t.detach()
         # error
@@ -271,11 +271,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     while sample_new_net is True:
         # instantiate network
         model = RNN(n_hidden=n_hidden, n_outputs=n_outputs,
-                    p_rel_range=p_rel_range, conn_rule=None)
+                    p_rel_range=p_rel_range)
 
         # save initial network parameters
         learned_params_init = {
-            'W_ih': model.W_ih.data.detach().clone(),
             'offset_ih': model.offset_ih.data.detach().clone(),
             'W_hh': model.W_hh.data.detach().clone(),
             'W_hh_mask': model.W_hh_mask.detach().clone(),  # static
@@ -326,7 +325,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # (re)set network weights
             with torch.no_grad():
-                model.W_ih.copy_(learned_params_init['W_ih'])
                 model.offset_ih.copy_(learned_params_init['offset_ih'])
                 model.W_hh.copy_(learned_params_init['W_hh'])
                 model.W_hz.copy_(learned_params_init['W_hz'])
@@ -343,9 +341,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
                 loss, _, _ = train_bptt(
                     inputs, targets, times, model, loss_fn, optimizer,
-                    h_0, r_0, u_0, dt=dt,
-                    noise_tau=noise_tau, noise_std=noise_std,
-                    include_corr_noise=False
+                    h_0, r_0, u_0, dt=dt
                     )
                 loss_per_iter.append(loss)
 
@@ -353,8 +349,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             # plot model output after training
             _, sim_stats_post = test_and_get_stats(
                 inputs, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
-                noise_tau=noise_tau, noise_std=noise_std,
-                include_corr_noise=False, plot=False
+                plot=False
                 )
             final_loss = sim_stats_post['loss']
             if np.isfinite(final_loss):
@@ -368,7 +363,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             
             # save final trained network parameters
             learned_params_final = {
-                'W_ih': model.W_ih.data.detach().clone(),
                 'offset_ih': model.offset_ih.data.detach().clone(),
                 'W_hh': model.W_hh.data.detach().clone(),
                 'W_hz': model.W_hz.data.detach().clone(),
@@ -407,8 +401,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     r_0=r_0_batch,
                     u_0=u_0_batch,
                     dt=dt,
-                    noise_tau=noise_tau_test,
-                    noise_std=noise_std_test,
                     plot=plot
                     )
                 for key, val in metrics.items():

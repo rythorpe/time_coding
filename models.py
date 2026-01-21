@@ -6,28 +6,22 @@ import torch
 
 
 class RNN(torch.nn.Module):
-    def __init__(self, n_inputs=1, n_hidden=300, n_outputs=1,
-                 p_rel_range=(0.1, 0.9), conn_rule=None):
+    def __init__(self, n_hidden=300, n_outputs=1,
+                 p_rel_range=(0.1, 0.9)):
         super().__init__()
-        self.n_inputs = n_inputs
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
         self.tau = 0.01  # 10 ms
         self.tau_depr = 0.2  # 200 ms; taken from Mongillo et al. Science 2008
         self.tau_facil = 1.5  # 1.5 s
-        self.beta = 50.0
-        # self._init_gain = 1.0 / np.mean(p_rel_range)
-        self._init_gain = 1.0
-        # scale up gain due to decrease in baseline conn strength from p_rel
-        self.gain = self._init_gain
+        self.beta = 80.0
+        self.gain = 1.0
         self.activation_gain = 8.0
         self.activation_thresh = 0.5
-        prob_c = 0.10
+        prob_c = 0.1
 
         # varied network parameters
-        # input -> hidden layer weights + offsets
-        self.W_ih = torch.nn.Parameter(torch.empty(n_hidden, n_inputs),
-                                       requires_grad=False)
+        # constant input to hidden layer
         self.offset_ih = torch.nn.Parameter(torch.zeros(n_hidden),
                                             requires_grad=True)
         # recurrent hidden layer postsynaptic weights
@@ -57,45 +51,20 @@ class RNN(torch.nn.Module):
         self.p_rel = p_rel
 
         # scale all postsynaptic targets according to their presynaptic source
-        # self.presyn_scaling = torch.ones(n_hidden)
+        # correct for deminished presynaptic strength due to p_rel to place
+        # each presynaptic unit on equal footing
         self.presyn_scaling = 1 / self.p_rel
 
-        # initialize input weights
-        torch.nn.init.normal_(self.W_ih, mean=0.0, std=1.0)
-
         # initialize hidden weights
-        w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
-        if conn_rule is None:
-            torch.nn.init.normal_(self.W_hh, mean=0.0, std=w_hidden_std)
-        else:
-            with torch.no_grad():
-                for target_idx in range(self.n_hidden):
-                    source_weights = torch.randn(self.n_hidden) * w_hidden_std
-                    # sort according to decending weight strength
-                    weight_sort_idxs = torch.argsort(source_weights.abs(),
-                                                     descending=True)
-                    if conn_rule == 'p_rel_cluster':
-                        # strong inter-connectivity between units of similar p_rel
-                        order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
-                        # sources with p_rel similar to that of target will receive early position in sorted set
-                        source_sort_idxs = order_metric.argsort(descending=False)
-                    elif conn_rule == 'p_rel_anticluster':
-                        # strong inter-connectivity between units of dissimilar p_rel
-                        order_metric = torch.abs(self.p_rel[target_idx] - self.p_rel)
-                        source_sort_idxs = order_metric.argsort(descending=True)
-                    elif conn_rule == 'p_rel_corr':
-                        # connection strength correlates with presynaptic p_rel
-                        order_metric = self.p_rel.clone()
-                        source_sort_idxs = order_metric.argsort(descending=True)
-                    elif conn_rule == 'p_rel_anticorr':
-                        # connection strength anticorrelates with presynaptic p_rel
-                        order_metric = self.p_rel.clone()
-                        source_sort_idxs = order_metric.argsort(descending=False)
-                    # assign sorted source weights
-                    self.W_hh[target_idx, source_sort_idxs] = source_weights[weight_sort_idxs]
+        # first, determine valence of presyn units for Dale's Law
+        p_e = 0.8
+        e_units = torch.bernoulli(torch.ones(n_hidden) * p_e)
+        presyn_valence = e_units * 2 - 1
+        # tile and transpose s.t. valence is replicated for each post-synaptic target
+        presyn_valence = torch.tile(presyn_valence, (n_hidden, 1))
 
-        # create mask for non-zero connections; tuning weights of
-        # zeroed connections won't effect model dynamics
+        # create mask for non-zero connections; this needs to be enforced
+        # explicitly during training
         n_conns_possible = n_hidden ** 2
         n_conns_chosen = int(np.round(prob_c * n_hidden ** 2))
         rand_conns = np.random.choice(n_conns_possible, size=n_conns_chosen,
@@ -103,18 +72,27 @@ class RNN(torch.nn.Module):
         self.W_hh_mask = torch.zeros(n_conns_possible)
         self.W_hh_mask[rand_conns] = 1
         self.W_hh_mask = torch.reshape(self.W_hh_mask, (n_hidden, n_hidden))
+        # incorporate valence into mask for element-wise multiplication
+        self.W_hh_mask *= presyn_valence
+        # determine magnitude of post-synaptic weight by sampling from
+        # Gaussian distribution
+        w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
+        weight_magnitude = torch.abs(torch.randn_like(self.W_hh) * w_hidden_std)
+        weight_magnitude[:, e_units == 0] *= p_e / (1 - p_e)  # upscale mag of i_units for balance
+        # finally, set magnitude and valence of synaptic weight
+        with torch.no_grad():
+            self.W_hh.copy_(weight_magnitude * self.W_hh_mask)
 
         # initialize output weights
         w_output_std = 1 / np.sqrt(n_hidden)
         torch.nn.init.normal_(self.W_hz, mean=0.0, std=w_output_std)
 
         # create mask for specifying hidden subsets that map to distinct outputs
-        # self.W_hz_mask = torch.ones_like(self.W_hz)
         self.W_hz_mask = torch.zeros_like(self.W_hz)
-        n_sources_per_subset = self.n_hidden // n_outputs
+        n_sources_per_output = self.n_hidden // n_outputs
         for output_idx in range(n_outputs):
-            first_source_idx = n_sources_per_subset * output_idx
-            last_source_idx = n_sources_per_subset * output_idx + n_sources_per_subset
+            first_source_idx = n_sources_per_output * output_idx
+            last_source_idx = n_sources_per_output * output_idx + n_sources_per_output
             self.W_hz_mask[output_idx, first_source_idx:last_source_idx] = 1
 
         # create registered buffers (i.e., fancy attributes that need to live
@@ -129,14 +107,12 @@ class RNN(torch.nn.Module):
         return torch.sigmoid(gain * (h - thresh))
 
     def forward(self, I, h_0, r_0, u_0, n_0=None, dt=0.001,
-                return_deriv=False, noise_tau=0.01, noise_std=0.0,
-                include_corr_noise=False):
+                return_deriv=False):
 
         # assuming input has shape (n_trials, n_times, n_hidden)
         batch_size, seq_len, _ = I.size()
 
         # create matrices for storing time-dependent state variables
-        n_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         r_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         u_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
         h_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
@@ -148,10 +124,6 @@ class RNN(torch.nn.Module):
 
             # each batch can theoretically have distinct initial conditions,
             # injected noise, or inputs
-            if n_0 is None:
-                n_t_minus_1 = noise_std * torch.randn(self.n_hidden)
-            else:
-                n_t_minus_1 = n_0[trial_idx, :]
             r_t_minus_1 = r_0[trial_idx, :]
             u_t_minus_1 = u_0[trial_idx, :]
             h_t_minus_1 = h_0[trial_idx, :]
@@ -162,23 +134,6 @@ class RNN(torch.nn.Module):
 
             # begin integration over time
             for t_idx in range(0, seq_len):
-                # noise; correct for non-stationarity in stochastic process
-                # where variance scales proportional to the sampling rate 1/dt
-                noise_scaling_fctr = np.sqrt(dt) / dt
-                noise_sample = torch.randn(self.n_hidden)
-                if include_corr_noise is True:
-                    # add correlated noise, then apply corrected normalization
-                    # factor
-                    noise_sample = (
-                        noise_sample +
-                        torch.ones(self.n_hidden) * torch.randn(1)
-                    ) / np.sqrt(2)
-                # correct for scaling of variance w.r.t. reference tau
-                dndt = (-n_t_minus_1 / noise_tau
-                        + noise_std * np.sqrt(1.0 / noise_tau)
-                        * noise_scaling_fctr * noise_sample)
-                n_t = n_t_minus_1 + dndt * dt
-                n_t_all[trial_idx, t_idx, :] = n_t.clone()
 
                 # pre-syn STP: depletion of resources (depression)
                 drdt = ((1 - r_t_minus_1) / self.tau_depr
@@ -195,10 +150,10 @@ class RNN(torch.nn.Module):
                 # calculate total transfer weight
                 effective_weight = (r_t_minus_1 * u_t_minus_1 *
                                     self.presyn_scaling *
-                                    self.gain * self.W_hh * self.W_hh_mask)
+                                    self.gain * self.W_hh)
 
                 # post-synaptic integration
-                ext_in = I[trial_idx, t_idx, :] @ self.W_ih.T + self.offset_ih + n_t_minus_1
+                ext_in = I[trial_idx, t_idx, :] + self.offset_ih
                 dhdt = (-h_t_minus_1
                         + h_transfer @ effective_weight.T
                         + ext_in) / self.tau
@@ -216,7 +171,6 @@ class RNN(torch.nn.Module):
                                                 + self.offset_hz)
 
                 # save for next time step
-                n_t_minus_1 = n_t
                 r_t_minus_1 = r_t
                 u_t_minus_1 = u_t
                 h_t_minus_1 = h_t
@@ -224,4 +178,42 @@ class RNN(torch.nn.Module):
         if return_deriv is True:
             return dhdt, drdt, dudt
         else:
-            return n_t_all, h_t_all, r_t_all, u_t_all, z_t_all
+            return h_t_all, r_t_all, u_t_all, z_t_all
+
+
+def OU_process(n_trials, n_times, n_dim, dt, noise_tau, noise_std,
+               include_corr_noise=False):
+    '''Simulate batch of independent trials of an OU process.'''
+
+    if dt > 1e-2 * noise_tau:
+        print('Warning: OU process may be unstable due to large dt. '
+              'Ideally, dt << noise_tau.')
+
+    n_t_all = torch.zeros(n_trials, n_times, n_dim)
+
+    # set initial state by sampling from stationary distribution
+    n_t_minus_1 = noise_std * torch.randn(n_trials, n_dim)
+
+    for t_idx in range(n_times):
+        noise_sample = torch.randn(n_trials, n_dim)
+        if include_corr_noise is True:
+            # add correlated noise sample, then correct for increase in variance
+            noise_sample = (
+                noise_sample +
+                torch.ones(n_trials, n_dim) * torch.randn(n_trials, 1)
+            ) / np.sqrt(2)
+
+        # correct for scaling of variance w.r.t. reference tau
+        # maintain stationarity about 2nd moment despite running summation;
+        # noise scales with 1/sqrt(dt), not 1/dt
+        sampling_rescaling = np.sqrt(dt) / dt
+        dndt = (-n_t_minus_1 / noise_tau
+                + noise_std * np.sqrt(2 / noise_tau) * noise_sample * sampling_rescaling)
+        
+        n_t = n_t_minus_1 + dndt * dt
+        n_t_all[:, t_idx, :] = n_t.clone()
+
+        # set prior state for next step in integration process
+        n_t_minus_1 = n_t
+
+    return n_t_all

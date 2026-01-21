@@ -28,10 +28,7 @@ def pre_train(inputs, times, model, h_0, r_0, u_0, dt,
     # run model without storing gradients until t=0
     with torch.no_grad():
         ext_in, h_t, r_t, u_t, z_t = model(inputs[:, times <= 0, :],
-                                           h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
-                                           noise_tau=noise_tau,
-                                           noise_std=noise_std,
-                                           include_corr_noise=include_corr_noise)
+                                           h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
 
         # now, train using at each time point using Sanger's Rule
         step_size = 1
@@ -43,9 +40,7 @@ def pre_train(inputs, times, model, h_0, r_0, u_0, dt,
             h_0 = h_t[:, -1, :].detach()
             ext_in, h_t, r_t, u_t, z_t = model(
                 inputs[:, t_minus_1_idx:t_idx, :],
-                h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
-                noise_tau=noise_tau, noise_std=noise_std,
-                include_corr_noise=include_corr_noise)
+                h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
             previous_rates = model.transfer_func(h_0[0]).detach().clone()
             current_rates = model.transfer_func(h_t[0, 0, :]).detach().clone()
             model.W_hh.data += step_sangers_rule(model.W_hh.data,
@@ -81,16 +76,15 @@ class RLS:
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0, dt, noise_tau, noise_std,
-               include_corr_noise=False):
+               h_0, r_0, u_0, dt):
     model.train()
 
     init_params = [param.detach().numpy() for param in model.parameters()
                    if param.requires_grad]
-    state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
-                       noise_tau=noise_tau, noise_std=noise_std,
-                       include_corr_noise=include_corr_noise)
-    z_t = state_vars[4]
+    W_hh_orig = model.W_hh.data.detach().clone()
+
+    state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+    z_t = state_vars[3]
     loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
     loss.backward()
 
@@ -99,6 +93,31 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     # model.W_hh[:, :50] *= model.presyn_scaling.detach()[:50]
     # torch.nn.init.ones_(model.presyn_scaling)
     optimizer.zero_grad()
+
+    # enforce constraints on learned recurrent weights
+    with torch.no_grad():
+        # enforce Dale's Law by preventing E/I units from changing valance
+        e_weights = model.W_hh[model.W_hh_mask == 1]
+        i_weights = model.W_hh[model.W_hh_mask == -1]
+        e_weights_clipped = torch.nn.functional.relu(e_weights)
+        i_weights_clipped = -1 * torch.nn.functional.relu(-1 * i_weights)
+        model.W_hh[model.W_hh_mask == 1] = e_weights_clipped
+        model.W_hh[model.W_hh_mask == -1] = i_weights_clipped
+        # enforce sparse connectivity
+        model.W_hh[model.W_hh_mask == 0] = 0.0
+        # now, stabilize learning by setting majority of non-zero connections
+        # back to previous state to enforce sparse updates
+        source_idxs, target_idxs = torch.nonzero(model.W_hh_mask, as_tuple=True)
+        n_conn_total = len(source_idxs)
+        n_conn_static = int(np.round(0.5 * n_conn_total))
+        rand_idxs_source = torch.randperm(n_conn_total)[:n_conn_static]
+        rand_idxs_targ = torch.randperm(n_conn_total)[:n_conn_static]
+
+        params_reset = W_hh_orig[source_idxs[rand_idxs_source],
+                                 target_idxs[rand_idxs_targ]]
+
+        model.W_hh[source_idxs[rand_idxs_source],
+                   target_idxs[rand_idxs_targ]] = params_reset
 
     return loss.item(), init_params, state_vars
 
@@ -121,9 +140,7 @@ def solve_ls_batch(hidden_sr, target_output):
     return weights, offsets
 
 
-def sim_batch(inputs, model, h_0, r_0, u_0,
-              dt, noise_tau, noise_std,
-              include_corr_noise=False, noise_ensembles='all'):
+def sim_batch(inputs, model, h_0, r_0, u_0, dt, noise_ensembles='all'):
     model.eval()
 
     n_trials, n_times, _ = inputs.shape
@@ -144,11 +161,7 @@ def sim_batch(inputs, model, h_0, r_0, u_0,
         # simulate and calculate total output error
         for t_idx in range(n_times):
             I = inputs[:, t_idx:t_idx + 1, :]
-            n_t, h_t, r_t, u_t, z_t = model(I, h_0=h_0, r_0=r_0, u_0=u_0,
-                                            n_0=n_0,
-                                            dt=dt, noise_tau=noise_tau,
-                                            noise_std=noise_std,
-                                            include_corr_noise=include_corr_noise)
+            h_t, r_t, u_t, z_t = model(I, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
 
             # zero-out noise in select ensembles
             n_t_masked = n_0_mask * n_t[:, -1, :]
@@ -170,18 +183,12 @@ def sim_batch(inputs, model, h_0, r_0, u_0,
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       dt, noise_tau, noise_std,
-                       include_corr_noise, plot=True):
+                       dt, plot=True):
     model.eval()
 
     with torch.no_grad():
         # simulate and calculate total output error
-        n_t, h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0,
-                                        dt=dt, noise_tau=noise_tau,
-                                        noise_std=noise_std,
-                                        include_corr_noise=include_corr_noise)
-        h_sr = model.transfer_func(h_t)
-        # loss = loss_fn(h_sr[:, times > 0, :], targets[:, times > 0, :])
+        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
 
     try:
@@ -190,7 +197,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         Warning("Test loss isn't a scalar!")
 
     # select first batch trial to visualize single-trial trajectories
-    ext_in_trial = (inputs[0] @ model.W_ih.T + model.offset_ih + n_t[0]).detach().numpy()
+    ext_in_trial = (inputs[0] + model.offset_ih).detach().numpy()
     hidden_sr_trial = model.transfer_func(h_t).detach().numpy()[0]
     syn_eff_trial = r_t.detach().numpy()[0] * u_t.detach().numpy()[0]
     outputs_trial = z_t.detach().numpy()[0]
@@ -211,8 +218,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
     # stats = dict(loss=loss.item(), dimensionality=n_dim)
 
     # package all state variables
-    state_vars = (n_t.detach(),
-                  h_t.detach(),
+    state_vars = (h_t.detach(),
                   r_t.detach(),
                   u_t.detach(),
                   z_t.detach())
