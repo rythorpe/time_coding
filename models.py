@@ -30,8 +30,6 @@ class RNN(torch.nn.Module):
         # hidden -> output layer weights + offsets
         self.W_hz = torch.nn.Parameter(torch.empty(n_outputs, n_hidden),
                                        requires_grad=True)
-        self.offset_hz = torch.nn.Parameter(torch.zeros(n_outputs),
-                                            requires_grad=False)
 
         # initialize release probabilities; default bounds taken from
         # Tsodyks & Markram PNAS 1997
@@ -60,7 +58,8 @@ class RNN(torch.nn.Module):
         p_e = 0.8
         e_units = torch.bernoulli(torch.ones(n_hidden) * p_e)
         presyn_valence = e_units * 2 - 1
-        # tile and transpose s.t. valence is replicated for each post-synaptic target
+        # tile and transpose s.t. valence is replicated
+        # for each post-synaptic target
         presyn_valence = torch.tile(presyn_valence, (n_hidden, 1))
 
         # create mask for non-zero connections; this needs to be enforced
@@ -74,11 +73,12 @@ class RNN(torch.nn.Module):
         self.W_hh_mask = torch.reshape(self.W_hh_mask, (n_hidden, n_hidden))
         # incorporate valence into mask for element-wise multiplication
         self.W_hh_mask *= presyn_valence
-        # determine magnitude of post-synaptic weight by sampling from
-        # Gaussian distribution
+        # sample magnitude of post-synaptic weight from cropped normal
+        # distribution centered at zero
         w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
         weight_magnitude = torch.abs(torch.randn_like(self.W_hh) * w_hidden_std)
-        weight_magnitude[:, e_units == 0] *= p_e / (1 - p_e)  # upscale mag of i_units for balance
+        # upscale mag of i_units for balance
+        weight_magnitude[:, e_units == 0] *= p_e / (1 - p_e)
         # finally, set magnitude and valence of synaptic weight
         with torch.no_grad():
             self.W_hh.copy_(weight_magnitude * self.W_hh_mask)
@@ -167,8 +167,7 @@ class RNN(torch.nn.Module):
                                                 gain=self.activation_gain,
                                                 thresh=self.activation_thresh)
                 output_weight = self.W_hz * self.W_hz_mask
-                z_t_all[trial_idx, t_idx, :] = (h_transfer @ output_weight.T
-                                                + self.offset_hz)
+                z_t_all[trial_idx, t_idx, :] = h_transfer @ output_weight.T
 
                 # save for next time step
                 r_t_minus_1 = r_t
