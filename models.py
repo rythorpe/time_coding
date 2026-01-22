@@ -7,7 +7,7 @@ import torch
 
 class RNN(torch.nn.Module):
     def __init__(self, n_hidden=300, n_outputs=1,
-                 p_rel_range=(0.1, 0.9)):
+                 p_rel_std=0.15):
         super().__init__()
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
@@ -36,7 +36,6 @@ class RNN(torch.nn.Module):
         # self.p_rel = torch.empty(n_hidden)
         # torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
         p_rel_mean = 0.35
-        p_rel_std = 0.15
         p_rel = torch.randn(n_hidden) * p_rel_std + p_rel_mean
         resample = True
         while resample is True:
