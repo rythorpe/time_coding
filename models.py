@@ -27,7 +27,7 @@ class RNN(torch.nn.Module):
         # recurrent hidden layer postsynaptic weights
         self.W_hh = torch.nn.Parameter(torch.empty(n_hidden, n_hidden),
                                        requires_grad=True)
-        # hidden -> output layer weights + offsets
+        # hidden -> output layer weights
         self.W_hz = torch.nn.Parameter(torch.empty(n_outputs, n_hidden),
                                        requires_grad=True)
 
@@ -54,7 +54,7 @@ class RNN(torch.nn.Module):
 
         # initialize hidden weights
         # first, determine valence of presyn units for Dale's Law
-        p_e = 0.8
+        p_e = 0.8  # 4:1 E:I ratio
         e_units = torch.bernoulli(torch.ones(n_hidden) * p_e)
         presyn_valence = e_units * 2 - 1
         # tile and transpose s.t. valence is replicated
@@ -207,7 +207,7 @@ def OU_process(n_trials, n_times, n_dim, dt, noise_tau, noise_std,
         sampling_rescaling = np.sqrt(dt) / dt
         dndt = (-n_t_minus_1 / noise_tau
                 + noise_std * np.sqrt(2 / noise_tau) * noise_sample * sampling_rescaling)
-        
+
         n_t = n_t_minus_1 + dndt * dt
         n_t_all[:, t_idx, :] = n_t.clone()
 
