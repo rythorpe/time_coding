@@ -21,14 +21,14 @@ from viz import plot_state_traj, plot_all_units
 
 noise_tau_vals = 10 ** np.linspace(-2, 0, 3)
 noise_std_vals = np.linspace(1e-1, 3e-1, 3)
-beta_vals = np.linspace(0, 50, 3)
-p_rel_range_vals = [2]
+beta_vals = np.linspace(0, 80, 2)
+p_rel_std_vals = [0.15, 0.05]
 
 params_between_net = list()
-params_between_net_keys = ['p_rel_range']
-for p_rel_range in p_rel_range_vals:
-    # p_rel_range
-    params_between_net.append([p_rel_range])
+params_between_net_keys = ['p_rel_std']
+for p_rel_std in p_rel_std_vals:
+    # p_rel_std
+    params_between_net.append([p_rel_std])
 
 params_train = list()
 params_train_keys = ['beta', 'noise_tau', 'noise_std']
@@ -45,9 +45,9 @@ for noise_tau in noise_tau_vals:
         # noise_tau, noise_std
         params_test.append([noise_tau, noise_std])
 
-n_random_nets = 20
+n_random_nets = 10
 n_jobs = 32
-n_test_trials = 20
+n_test_trials = 1
 output_dir = '/projects/ryth7446/time_coding_output'
 # n_random_nets = 2
 # n_jobs = 2
@@ -224,8 +224,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     '''Sweeps over training conditions for a given random net, then runs tests
      each trained net and saves important metrics for each test condition.'''
     
-    p_rel_range = param_net[0]
-
+    p_rel_std = param_net[0]
     
     # create HDF5 file for saving results
     fname_local = ('data_' + f'net{net_idx:02d}_' +
@@ -243,12 +242,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
     # define network hyperparameters
     n_hidden, n_outputs = 500, 10
-    if p_rel_range == 2:
-        p_rel_range = (0.1, 0.6)  # high heterogeneity
-    elif p_rel_range == 1:
-        p_rel_range = (0.3, 0.4)  # low heterogeneity
-    elif p_rel_range == 0:
-        p_rel_range = (0.35, 0.35)  # homogeneous
 
     # define input to network
     n_trials = 1
@@ -271,7 +264,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     while sample_new_net is True:
         # instantiate network
         model = RNN(n_hidden=n_hidden, n_outputs=n_outputs,
-                    p_rel_range=p_rel_range)
+                    p_rel_std=p_rel_std)
 
         # save initial network parameters
         learned_params_init = {
