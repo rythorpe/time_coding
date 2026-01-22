@@ -140,46 +140,12 @@ def solve_ls_batch(hidden_sr, target_output):
     return weights, offsets
 
 
-def sim_batch(inputs, model, h_0, r_0, u_0, dt, noise_ensembles='all'):
+def sim_batch(inputs, model, h_0, r_0, u_0, dt):
     model.eval()
-
-    n_trials, n_times, _ = inputs.shape
-
-    if noise_ensembles == 'all':
-        noise_ensembles = torch.ones(model.n_outputs)
-
-    n_0_mask = noise_ensembles @ model.W_hz_mask
-    n_0 = noise_std * torch.randn_like(h_0)
-
-    n_t_all = torch.zeros(n_trials, n_times, model.n_hidden)
-    r_t_all = torch.zeros(n_trials, n_times, model.n_hidden)
-    u_t_all = torch.zeros(n_trials, n_times, model.n_hidden)
-    h_t_all = torch.zeros(n_trials, n_times, model.n_hidden)
-    z_t_all = torch.zeros(n_trials, n_times, model.n_outputs)
-
     with torch.no_grad():
-        # simulate and calculate total output error
-        for t_idx in range(n_times):
-            I = inputs[:, t_idx:t_idx + 1, :]
-            h_t, r_t, u_t, z_t = model(I, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
-
-            # zero-out noise in select ensembles
-            n_t_masked = n_0_mask * n_t[:, -1, :]
-
-            # save current state for output
-            n_t_all[:, t_idx, :] = n_t_masked
-            h_t_all[:, t_idx, :] = h_t[:, -1, :]
-            r_t_all[:, t_idx, :] = r_t[:, -1, :]
-            u_t_all[:, t_idx, :] = u_t[:, -1, :]
-            z_t_all[:, t_idx, :] = z_t[:, -1, :]
-
-            # set initial state for next time step
-            n_0 = n_t_masked
-            h_0 = h_t[:, -1, :]
-            r_0 = r_t[:, -1, :]
-            u_0 = u_t[:, -1, :]
-
-    return n_t_all, h_t_all, r_t_all, u_t_all, z_t_all
+        # simulate network
+        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+    return h_t, r_t, u_t, z_t
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,

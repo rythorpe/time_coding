@@ -223,9 +223,9 @@ def loss_fn(output, target):
 def eval_net_instance(param_net, params_train, params_test, net_idx):
     '''Sweeps over training conditions for a given random net, then runs tests
      each trained net and saves important metrics for each test condition.'''
-    
+
     p_rel_std = param_net[0]
-    
+
     # create HDF5 file for saving results
     fname_local = ('data_' + f'net{net_idx:02d}_' +
                    get_commit_hash() + '_' + get_timestamp() + '.hdf5')
@@ -273,7 +273,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             'W_hh_mask': model.W_hh_mask.detach().clone(),  # static
             'W_hz': model.W_hz.data.detach().clone(),
             'W_hz_mask': model.W_hz_mask.detach().clone(),  # static
-            'offset_hz': model.offset_hz.data.detach().clone(),
             'p_rel': model.p_rel.detach().clone()  # static
             }
         for key, val in learned_params_init.items():
@@ -321,12 +320,11 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 model.offset_ih.copy_(learned_params_init['offset_ih'])
                 model.W_hh.copy_(learned_params_init['W_hh'])
                 model.W_hz.copy_(learned_params_init['W_hz'])
-                model.offset_hz.copy_(learned_params_init['offset_hz'])
 
             model.beta = beta
 
             # train network weights
-            n_training_trials = 3000
+            n_training_trials = 2500
             # noise_tau = dt  # train with Gaussian white noise by setting noise_tau -> dt
             # noise_std = 1e-2
             loss_per_iter = list()
@@ -353,7 +351,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             loss_per_iter.append(final_loss)
             # save loss trajectory
             training_grp.create_dataset('loss', data=loss_per_iter)
-            
+
             # save final trained network parameters
             learned_params_final = {
                 'offset_ih': model.offset_ih.data.detach().clone(),
@@ -375,7 +373,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 h_0_batch = torch.tile(h_0, dims=(n_test_trials, 1))
                 r_0_batch = torch.tile(r_0, dims=(n_test_trials, 1))
                 u_0_batch = torch.tile(u_0, dims=(n_test_trials, 1))
-                
+
                 # select subset of conditions to plot and save example sims
                 plot = (noise_tau in [1e-2, 1e0] and
                         noise_tau_test == noise_tau and
@@ -406,7 +404,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:.2f}_std{noise_std:.2f}_tau{noise_tau:.2f}.png'
                     figs[1].savefig(op.join(output_dir, fname_state_fig))
                     plt.close(figs[1])
-
 
             for test_param_idx, test_param_key in enumerate(params_test_keys):
                 test_param_vals = np.array(params_test)[:, test_param_idx]
