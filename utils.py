@@ -6,8 +6,9 @@ from datetime import datetime
 import numpy as np
 import scipy
 import torch
-
 import matplotlib.pyplot as plt
+
+from models import OU_process
 
 
 def get_device():
@@ -106,6 +107,29 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
         fig.show()
 
     return h_transfer_subset, opt_basis
+
+
+def generate_noise(n_trials, times, n_dim, noise_tau, noise_std,
+                   include_corr_noise=False, dt=1e-5):
+    '''Generate noise timecourses, then downsample.'''
+    # time step of desired output signal
+    # note that the dt used for generating noise process can be different 
+    dt_out = times[1] - times[0]
+    if dt_out < dt:
+        print('Warning: integration step size must be smaller than step size '
+              'for final output.')
+    time_duration = times[-1] - times[0] + dt_out
+    n_times = int(np.round(time_duration / dt))
+
+    # simulate batch of noise with a small integration step size
+    noise_batch = OU_process(n_trials=n_trials, n_times=n_times,
+                             n_dim=n_dim, dt=dt,
+                             noise_tau=noise_tau, noise_std=noise_std,
+                             include_corr_noise=include_corr_noise)
+
+    # downsample
+    decimation_step = int(np.round(dt_out / dt))
+    return noise_batch[:, ::decimation_step, :]
 
 
 def get_commit_hash():
