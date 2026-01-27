@@ -110,7 +110,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
         targets_train_dim = targets[train_dim_idx::n_batch_trials, ...]
 
         peak_idxs = targets_train_dim[0, :, :].argmax(dim=0)
-        seq_t_mask = torch.zeros_like(times)
+        seq_t_mask = torch.zeros(n_times)
         seq_t_mask[peak_idxs[0]:peak_idxs[-1]] = 1
 
         # mean spike rate across trials and time (keep unit dim)
