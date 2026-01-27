@@ -72,7 +72,8 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
 
     n_batch_trials, n_times, _ = evoked_input.shape
     n_hidden, n_outputs = model.n_hidden, model.n_outputs
-    noise = generate_noise(n_batch_trials * n_test_trials, times, n_hidden, noise_tau, noise_std)
+    noise = generate_noise(n_batch_trials * n_test_trials, times, n_hidden,
+                           noise_tau, noise_std)
     # tile across test trials
     inputs = torch.tile(evoked_input, dims=(n_test_trials, 1, 1)) + noise
     targets = torch.tile(targets, dims=(n_test_trials, 1, 1))
@@ -88,7 +89,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     h_0 = h_0.to(device)
     r_0 = r_0.to(device)
     u_0 = u_0.to(device)
-    
+
     model.eval()
     with torch.no_grad():
         # simulate network
@@ -201,7 +202,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # instantiate network
         model = RNN(n_hidden=n_hidden, n_outputs=n_outputs,
                     p_rel_std=p_rel_std)
-        
+
         # define input to network
         # these will be held constant across training conditions
         evoked_input_timeseries = torch.zeros((3, n_times, n_hidden))
@@ -281,7 +282,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             h_0 = torch.zeros(n_hidden)
             h_0 = torch.tile(h_0, (n_batch_trials, 1))  # replicate for each batch
             # r_0 = torch.tensor(sol.x[n_hidden:2 * n_hidden], dtype=torch.float32)
-            r_0 = torch.ones(n_hidden) 
+            r_0 = torch.ones(n_hidden)
             r_0 = torch.tile(r_0, (n_batch_trials, 1))
             # u_0 = torch.tensor(sol.x[2 * n_hidden:3 * n_hidden], dtype=torch.float32)
             u_0 = model.p_rel.detach()
@@ -366,10 +367,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     metrics_appended[key].append(val)
                 # pow_spec.append(metrics['pow_spec'])
                 if plot_instance is True:
-                    fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:.2f}_n_targs{n_targ_seq:2d}_seq_compr{seq_compression:.2f}.pdf'
+                    fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:2.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
                     figs[0].savefig(op.join(output_dir, fname_traj_fig))
                     plt.close(figs[0])
-                    fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:.2f}_n_targs{n_targ_seq:2d}_seq_compr{seq_compression:.2f}.pdf'
+                    fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:2.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
                     figs[1].savefig(op.join(output_dir, fname_state_fig))
                     plt.close(figs[1])
 
