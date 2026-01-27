@@ -110,13 +110,13 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
         targets_train_dim = targets[train_dim_idx::n_batch_trials, ...]
 
         peak_idxs = targets_train_dim[0, :, :].argmax(dim=0)
-        seq_t_mask = torch.zeros(n_times)
+        seq_t_mask = np.zeros((n_times,))
         seq_t_mask[peak_idxs[0]:peak_idxs[-1]] = 1
 
         # mean spike rate across trials and time (keep unit dim)
-        mean_rates.append(hidden_sr_train_dim[:, seq_t_mask, :].mean(dim=(0, 1)))
+        mean_rates.append(hidden_sr_train_dim[:, seq_t_mask == 1, :].mean(dim=(0, 1)))
         # mean synaptic efficacy across trials and time (keep unit dim)
-        mean_syn_effs.append(syn_eff_train_dim[:, seq_t_mask, :].mean(dim=(0, 1)))
+        mean_syn_effs.append(syn_eff_train_dim[:, seq_t_mask == 1, :].mean(dim=(0, 1)))
 
         # final MSE
         mse.append(loss_fn(output_train_dim[:, times > 0, :],
