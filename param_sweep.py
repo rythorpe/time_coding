@@ -332,8 +332,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             learned_params_final = {
                 'offset_ih': model.offset_ih.data.detach().clone(),
                 'W_hh': model.W_hh.data.detach().clone(),
-                'W_hz': model.W_hz.data.detach().clone(),
-                'offset_hz': model.offset_hz.data.detach().clone()
+                'W_hz': model.W_hz.data.detach().clone()
                 }
             for key, val in learned_params_final.items():
                 training_grp.create_dataset(key, data=val)
