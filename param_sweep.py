@@ -226,6 +226,13 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # instantiate optimizer (with refs to model params undergoing training)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
+        # generate big batch of OU process timeseries at the beginning to
+        # draw from during training
+        n_rand_trials = 3 * 3
+        n_rand_units = n_hidden * 3
+        noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
+                                     0.1, 0.1)  # n_trials, n_times, n_dim
+
         # train network
         for training_cond_idx, param_train in enumerate(params_train):
 
@@ -257,10 +264,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # generate big batch of OU process timeseries at the beginning to
             # draw from during training
-            n_rand_trials = n_batch_trials * 3
-            n_rand_units = n_hidden * 3
-            noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
-                                         noise_tau, noise_std)  # n_trials, n_times, n_dim
+            # n_rand_trials = n_batch_trials * 3
+            # n_rand_units = n_hidden * 3
+            # noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
+            #                              noise_tau, noise_std)  # n_trials, n_times, n_dim
 
             # define output targets, one set of Gaussian peaks for each batch trial
             # set std s.t. amplitude decays to 1/e at intersection with next target
@@ -278,13 +285,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # set initial conditions of recurrent units fixed across iterations of
             # training and testing
-            # h_0 = torch.tensor(sol.x[:n_hidden], dtype=torch.float32)
             h_0 = torch.zeros(n_hidden)
             h_0 = torch.tile(h_0, (n_batch_trials, 1))  # replicate for each batch
-            # r_0 = torch.tensor(sol.x[n_hidden:2 * n_hidden], dtype=torch.float32)
             r_0 = torch.ones(n_hidden)
             r_0 = torch.tile(r_0, (n_batch_trials, 1))
-            # u_0 = torch.tensor(sol.x[2 * n_hidden:3 * n_hidden], dtype=torch.float32)
             u_0 = model.p_rel.detach()
             u_0 = torch.tile(u_0, (n_batch_trials, 1))
 
@@ -339,7 +343,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # now, test trained network and save metrics
             metrics_appended = defaultdict(list)
-            # pow_spec = list()
             for param_test in params_test:
 
                 noise_tau_test, noise_std_test = param_test
@@ -365,7 +368,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     )
                 for key, val in metrics.items():
                     metrics_appended[key].append(val)
-                # pow_spec.append(metrics['pow_spec'])
+
                 if plot_instance is True:
                     fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
                     figs[0].savefig(op.join(output_dir, fname_traj_fig))
