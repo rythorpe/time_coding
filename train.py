@@ -149,7 +149,7 @@ def sim_batch(inputs, model, h_0, r_0, u_0, dt):
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       dt, plot=True):
+                       dt, plot=True, inputs_to_plot=None):
     model.eval()
 
     with torch.no_grad():
@@ -163,7 +163,10 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
         Warning("Test loss isn't a scalar!")
 
     # select first batch trial to visualize single-trial trajectories
-    ext_in_trial = (inputs[0] + model.offset_ih).detach().numpy()
+    if inputs_to_plot is None:
+        ext_in_trial = (inputs[0] + model.offset_ih).detach().numpy()
+    else:
+        ext_in_trial = inputs_to_plot.detach().numpy()[0]
     hidden_sr_trial = model.transfer_func(h_t).detach().numpy()[0]
     syn_eff_trial = r_t.detach().numpy()[0] * u_t.detach().numpy()[0]
     outputs_trial = z_t.detach().numpy()[0]
@@ -176,7 +179,7 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
                               syn_eff=syn_eff_trial, outputs=outputs_trial,
                               targets=targets_trial, times=times)
         axes = fig.get_axes()
-        axes[0].set_ylim([-2, 2])
+        axes[0].set_ylim([-1.2, 1.2])
 
     # calculate metrics-of-interest
     # n_dim = est_dimensionality(hidden_sr_trial)
