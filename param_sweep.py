@@ -367,10 +367,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     metrics_appended[key].append(val)
                 # pow_spec.append(metrics['pow_spec'])
                 if plot_instance is True:
-                    fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:2.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
+                    fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
                     figs[0].savefig(op.join(output_dir, fname_traj_fig))
                     plt.close(figs[0])
-                    fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:2.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
+                    fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
                     figs[1].savefig(op.join(output_dir, fname_state_fig))
                     plt.close(figs[1])
 
@@ -391,11 +391,10 @@ if __name__ == '__main__':
     torch.random.manual_seed(93214)
     np.random.seed(35107)
 
-    print(len(params_between_net) * 2)
-    params_between_net = np.tile(params_between_net, (n_random_nets, 1))
-    n_total_nets = params_between_net.shape[0]
+    params_between_net_rep = np.tile(params_between_net, (n_random_nets, 1))
+    n_total_nets = params_between_net_rep.shape[0]
 
-    # Parallel(n_jobs=n_jobs)(delayed(eval_net_instance)
-    #                         (params_between_net[net_idx], params_train,
-    #                          params_test, net_idx)
-    #                         for net_idx in range(n_total_nets))
+    Parallel(n_jobs=n_jobs)(delayed(eval_net_instance)
+                            (params_between_net_rep[net_idx], params_train,
+                             params_test, net_idx)
+                            for net_idx in range(n_total_nets))
