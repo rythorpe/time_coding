@@ -201,13 +201,17 @@ def plot_all_units(h_units, syn_eff, outputs, targets, times):
                                      range(1, n_outputs + 1),
                                      outputs[time_mask, :].T, cmap='RdGy',
                                      vmin=-1, vmax=1)
-    # peak_idxs = targets.argmax(dim=0)
-    # peak_times = times[peak_idxs]
+    peak_idxs = targets.argmax(dim=0)
+    peak_times = times[peak_idxs]
     # axes[2].scatter(peak_times, range(1, n_outputs + 1), marker='|',
-    #                 c=colors_output, s=80, linewidths=3)
+    #                 c=colors_output, s=80, linewidths=2)
+    y_max = np.arange(1, n_outputs + 1)
+    y_min = np.full_like(y_max, 0.5)
+    axes[2].vlines(peak_times, y_min, y_max, colors=colors_output, lw=2)
     axes[2].set_title('output layer\nrate')
     axes[2].set_yticks([1, n_outputs])
     axes[2].set_xticks([0, 1])
+    axes[2].set_ylim([0.5, n_outputs + 0.5])
     # axes[2].set_ylabel('normalized\nfiring rate (a.u.)')
     cbar_2 = fig.colorbar(out_res_map, ax=axes[2], ticks=[-1, 0, 1])
 
