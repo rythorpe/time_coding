@@ -71,8 +71,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     '''
 
     n_batch_trials, n_times, _ = evoked_input.shape
-    n_inputs, n_hidden, n_outputs = (model.n_inputs, model.n_hidden,
-                                     model.n_outputs)
+    n_hidden, n_outputs = model.n_hidden, model.n_outputs
     noise = generate_noise(n_batch_trials * n_test_trials, times, n_hidden, noise_tau, noise_std)
     # tile across test trials
     inputs = torch.tile(evoked_input, dims=(n_test_trials, 1, 1)) + noise
