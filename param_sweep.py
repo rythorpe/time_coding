@@ -391,10 +391,11 @@ if __name__ == '__main__':
     torch.random.manual_seed(93214)
     np.random.seed(35107)
 
+    print(len(params_between_net) * 2)
     params_between_net = np.tile(params_between_net, (n_random_nets, 1))
     n_total_nets = params_between_net.shape[0]
 
-    Parallel(n_jobs=n_jobs)(delayed(eval_net_instance)
-                            (params_between_net[net_idx], params_train,
-                             params_test, net_idx)
-                            for net_idx in range(n_total_nets))
+    # Parallel(n_jobs=n_jobs)(delayed(eval_net_instance)
+    #                         (params_between_net[net_idx], params_train,
+    #                          params_test, net_idx)
+    #                         for net_idx in range(n_total_nets))
