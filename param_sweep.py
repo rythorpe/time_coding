@@ -129,7 +129,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     avg_train_batch_dim = np.mean(training_batch_dims)
 
     # dimensionality of hidden unit responses across all test and training batch trials
-    all_batch_stack = torch.reshape(hidden_sr_train_dim, (n_times, n_hidden * n_batch_trials * n_test_trials))
+    all_batch_stack = torch.reshape(hidden_sr, (n_times, n_hidden * n_batch_trials * n_test_trials))
     batch_dim = est_dimensionality(all_batch_stack)
 
     metrics = {'mean_rate': mean_rates, 'mean_syn_eff': mean_syn_effs,
