@@ -154,8 +154,17 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
                                    outputs=outputs_trial,
                                    targets=targets_trial,
                                    times=times)
-        fig_state = plot_all_units(h_units=hidden_sr_trial,
-                                   syn_eff=syn_eff_trial,
+
+        # sort hidden units according to peak activity for plotting
+        peak_t_idx = list()
+        for h_idx in range(n_hidden):
+            # select 1st time index the threshhold is cross
+            max_idx = hidden_sr_trial[times > 0, h_idx].argmax()
+            peak_t_idx.append(max_idx)
+        sort_idxs = np.argsort(peak_t_idx)
+
+        fig_state = plot_all_units(h_units=hidden_sr_trial[:, sort_idxs],
+                                   syn_eff=syn_eff_trial[:, sort_idxs],
                                    outputs=outputs_trial,
                                    targets=targets_trial,
                                    times=times)
