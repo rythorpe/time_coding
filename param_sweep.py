@@ -73,7 +73,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     n_batch_trials, n_times, _ = evoked_input.shape
     n_hidden, n_outputs = model.n_hidden, model.n_outputs
     noise = generate_noise(n_batch_trials * n_test_trials, times, n_hidden,
-                           noise_tau, noise_std)
+                           noise_tau, noise_std, dt=1e-4)
     # tile across test trials
     inputs = torch.tile(evoked_input, dims=(n_test_trials, 1, 1)) + noise
     targets = torch.tile(targets, dims=(n_test_trials, 1, 1))
@@ -226,13 +226,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # instantiate optimizer (with refs to model params undergoing training)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-        # generate big batch of OU process timeseries at the beginning to
-        # draw from during training
-        n_rand_trials = 3 * 3
-        n_rand_units = n_hidden * 3
-        noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
-                                     0.1, 0.1)  # n_trials, n_times, n_dim
-
         # train network
         for training_cond_idx, param_train in enumerate(params_train):
 
@@ -264,10 +257,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # generate big batch of OU process timeseries at the beginning to
             # draw from during training
-            # n_rand_trials = n_batch_trials * 3
-            # n_rand_units = n_hidden * 3
-            # noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
-            #                              noise_tau, noise_std)  # n_trials, n_times, n_dim
+            n_rand_trials = n_batch_trials * 3
+            n_rand_units = n_hidden * 3
+            noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
+                                         noise_tau, noise_std, dt=1e-4)  # n_trials, n_times, n_dim
 
             # define output targets, one set of Gaussian peaks for each batch trial
             # set std s.t. amplitude decays to 1/e at intersection with next target
