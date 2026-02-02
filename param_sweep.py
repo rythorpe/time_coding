@@ -135,7 +135,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     all_trial_stack = []
     for trial_idx in range(n_batch_trials * n_test_trials):
         all_trial_stack.append(hidden_sr[trial_idx, ...])
-    all_trial_stack = torch.cat(hidden_sr, dim=1)
+    all_trial_stack = torch.cat(all_trial_stack, dim=1)
     batch_dim = est_dimensionality(all_trial_stack)
 
     metrics = {'mean_rate': mean_rates, 'mean_syn_eff': mean_syn_effs,
