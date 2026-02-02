@@ -32,7 +32,7 @@ noise_tau_vals = [0.1]
 noise_std_vals = [0.1]
 beta_vals = [0., 80.]
 n_targ_seq_vals = [1, 2, 3]
-seq_compression_vals = [0.2, 0.5, 0.8]
+seq_compression_vals = [0.5, 0.75, 1.0]
 ###
 params_train = list()
 params_train_keys = ['beta', 'noise_tau', 'noise_std', 'n_targ_seq', 'seq_compression']
@@ -121,16 +121,22 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
 
         # final MSE
         mse.append(loss_fn(output_train_dim[:, times > 0, :],
-                           targets_train_dim[:, times > 0, :]))
+                           targets_train_dim[:, times > 0, :]).item())
 
-        # dimensionality of hidden unit responses across test trials for a given training batch trial 
-        test_trial_stack = torch.reshape(hidden_sr_train_dim, (n_times, n_hidden * n_test_trials))
+        # dimensionality of hidden unit responses across test trials for a given training batch trial
+        test_trial_stack = []
+        for trial_idx in range(n_test_trials):
+            test_trial_stack.append(hidden_sr_train_dim[trial_idx, ...])
+        test_trial_stack = torch.cat(test_trial_stack, dim=1)
         training_batch_dims.append(est_dimensionality(test_trial_stack))
     avg_train_batch_dim = np.mean(training_batch_dims)
 
     # dimensionality of hidden unit responses across all test and training batch trials
-    all_batch_stack = torch.reshape(hidden_sr, (n_times, n_hidden * n_batch_trials * n_test_trials))
-    batch_dim = est_dimensionality(all_batch_stack)
+    all_trial_stack = []
+    for trial_idx in range(n_batch_trials * n_test_trials):
+        all_trial_stack.append(hidden_sr[trial_idx, ...])
+    all_trial_stack = torch.cat(hidden_sr, dim=1)
+    batch_dim = est_dimensionality(all_trial_stack)
 
     metrics = {'mean_rate': mean_rates, 'mean_syn_eff': mean_syn_effs,
                'mse': mse, 'avg_dim_index_test_trial_agg': avg_train_batch_dim,
