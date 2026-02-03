@@ -53,7 +53,7 @@ for noise_tau in noise_tau_vals:
         params_test.append([noise_tau, noise_std])
 
 n_random_nets = 10
-n_jobs = 10
+n_jobs = 20
 n_test_trials = 10
 output_dir = '/projects/ryth7446/time_coding_output'
 # n_random_nets = 2
@@ -132,7 +132,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     avg_train_batch_dim = np.mean(training_batch_dims)
 
     # dimensionality of hidden unit responses across all test and training batch trials
-    all_trial_stack = []
+    all_trial_stack = list()
     for trial_idx in range(n_batch_trials * n_test_trials):
         all_trial_stack.append(hidden_sr[trial_idx, ...])
     all_trial_stack = torch.cat(all_trial_stack, dim=1)
@@ -250,7 +250,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # create subdirectory (i.e., HDF5 'group') in which to save results
             # for this realization of the trained network
-            training_grp = file.create_group(f'training_cond{training_cond_idx}')
+            training_grp = file.create_group(f'training_cond{training_cond_idx:02d}')
             for training_param_idx, training_param_key in enumerate(params_train_keys):
                 training_grp.create_dataset(training_param_key, data=param_train[training_param_idx])
 
