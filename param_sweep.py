@@ -32,7 +32,7 @@ noise_tau_vals = [0.1]
 noise_std_vals = [0.1]
 beta_vals = [0., 80.]
 n_targ_seq_vals = [1, 2, 3]
-seq_compression_vals = [0.5, 0.75, 1.0]
+seq_compression_vals = [0.25, 0.5, 1.0]
 ###
 params_train = list()
 params_train_keys = ['beta', 'noise_tau', 'noise_std', 'n_targ_seq', 'seq_compression']
