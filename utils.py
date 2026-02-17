@@ -42,7 +42,7 @@ def est_optimal_basis(column_vars, n_basis_funcs=10):
     # each column is a variable / channel
     # each row is an observation / sample
     cov = np.cov(column_vars, rowvar=False)
-    eigvals, eigvecs = scipy.linalg.eig(cov)
+    eigvals, eigvecs = scipy.linalg.eigh(cov)
     sort_idxs = np.argsort(eigvals)[-1::-1]  # reverse for descending order
     eigvals, eigvecs = eigvals[sort_idxs], eigvecs[:, sort_idxs]
     # optimal basis is the reduced PC embedding: time x PC
