@@ -1,8 +1,9 @@
 """RNN model."""
 
 import numpy as np
-
 import torch
+
+from utils import randn_cropped
 
 
 class RNN(torch.nn.Module):
@@ -36,16 +37,8 @@ class RNN(torch.nn.Module):
         # self.p_rel = torch.empty(n_hidden)
         # torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
         p_rel_mean = 0.35
-        p_rel = torch.randn(n_hidden) * p_rel_std + p_rel_mean
-        resample = True
-        while resample is True:
-            stuff = torch.logical_or(p_rel <= 0, p_rel > 1)
-            n_resample = stuff.sum()
-            if n_resample > 0:
-                p_rel[stuff] = torch.randn(n_resample) * p_rel_std + p_rel_mean
-            else:
-                resample = False
-        self.p_rel = p_rel
+        self.p_rel = randn_cropped(p_rel_mean, p_rel_std, (n_hidden,),
+                                   lb=0.0, ub=1.0)
 
         # scale all postsynaptic targets according to their presynaptic source
         # correct for deminished presynaptic strength due to p_rel to place
