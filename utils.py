@@ -8,8 +8,6 @@ import scipy
 import torch
 import matplotlib.pyplot as plt
 
-from models import OU_process
-
 
 def get_device():
     # Get cpu, gpu or mps device for training.
@@ -53,7 +51,7 @@ def est_dimensionality(column_vars):
     # each column is a variable / channel
     # each row is an observation / sample
     cov = np.cov(column_vars, rowvar=False)
-    eigvals, eigvecs = scipy.linalg.eig(cov)
+    eigvals, eigvecs = scipy.linalg.eigh(cov)
     eigvals = np.abs(eigvals)
     eigvals /= np.sum(eigvals)
     n_dim = 1 / np.sum(eigvals ** 2)
@@ -112,6 +110,8 @@ def get_random_targets(model_class, inputs, model_dims, times, n_opt_basis=10,
 def generate_noise(n_trials, times, n_dim, noise_tau, noise_std,
                    include_corr_noise=False, dt=1e-5):
     '''Generate noise timecourses, then downsample.'''
+    from models import OU_process
+
     # time step of desired output signal
     # note that the dt used for generating noise process can be different 
     dt_out = times[1] - times[0]
