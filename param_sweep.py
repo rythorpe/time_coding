@@ -324,6 +324,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     )
                 loss_per_iter.append(loss)
 
+                # end training early if accuracy treshold is reached
+                if np.mean(loss_per_iter[-10:]) < 1e-1:
+                    break
+
             # get loss after final update
             # plot model output after training
             _, sim_stats_post = test_and_get_stats(
