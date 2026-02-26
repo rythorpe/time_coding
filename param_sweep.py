@@ -228,6 +228,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # map to spike rate in (0, 1)
         single_unit_input = model.transfer_func(single_unit_input, gain=2)
         # scale for each hidden unit using random input weight
+        # set arbitrarily high upper bound
         evoked_input_timeseries[:, perturb_win_mask, :] = randn_cropped(0, 1, (n_hidden,), lb=0.0, ub=1e3) * single_unit_input
 
         # save initial network parameters
