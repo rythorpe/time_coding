@@ -13,13 +13,13 @@ import torch
 from torch import nn
 
 from utils import (get_gaussian_targets, get_commit_hash, get_timestamp,
-                   est_dimensionality, generate_noise)
+                   est_dimensionality, generate_noise, randn_cropped)
 from models import RNN
 from train import sim_batch, train_bptt, test_and_get_stats
 from viz import plot_state_traj, plot_all_units
 
 ###
-p_rel_std_vals = [0.15, 0.05]
+p_rel_std_vals = [0.15, 0.03]
 ###
 params_between_net = list()
 params_between_net_keys = ['p_rel_std']
@@ -52,8 +52,8 @@ for noise_tau in noise_tau_vals:
         # noise_tau, noise_std
         params_test.append([noise_tau, noise_std])
 
-n_random_nets = 10
-n_jobs = 20
+n_random_nets = 30
+n_jobs = 30
 n_test_trials = 10
 output_dir = '/projects/ryth7446/time_coding_output'
 # n_random_nets = 2
@@ -222,9 +222,13 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # these will be held constant across training conditions
         evoked_input_timeseries = torch.zeros((3, n_times, n_hidden))
         perturb_win_mask = times >= 0
+        # generate noisy random process about zero
         single_unit_input = generate_noise(3, times[perturb_win_mask], 1,
-                                           noise_tau=0.5, noise_std=0.5)
-        evoked_input_timeseries[:, perturb_win_mask, :] = torch.randn(n_hidden) * single_unit_input
+                                           noise_tau=0.1, noise_std=1.0)
+        # map to spike rate in (0, 1)
+        single_unit_input = model.transfer_func(single_unit_input, gain=2)
+        # scale for each hidden unit using random input weight
+        evoked_input_timeseries[:, perturb_win_mask, :] = randn_cropped(0, 1, (n_hidden,), lb=0.0, ub=1e3) * single_unit_input
 
         # save initial network parameters
         learned_params_init = {
@@ -311,6 +315,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             # train network weights
             n_training_trials = 2500
             loss_per_iter = list()
+            target_acc_reached = False
             for _ in range(n_training_trials):
                 rand_trial_idxs = torch.randperm(n_rand_trials)[:n_batch_trials]
                 rand_units_idxs = torch.randperm(n_rand_units)[:n_hidden]
@@ -326,6 +331,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
                 # end training early if accuracy treshold is reached
                 if np.mean(loss_per_iter[-10:]) < 1e-1:
+                    target_acc_reached = True
                     break
 
             # get loss after final update
@@ -342,6 +348,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 break
             loss_per_iter.append(final_loss)
             # save loss trajectory
+            training_grp.create_dataset('target_reached', data=target_acc_reached)
             training_grp.create_dataset('loss', data=loss_per_iter)
 
             # save final trained network parameters
