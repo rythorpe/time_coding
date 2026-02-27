@@ -368,7 +368,9 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 noise_tau_test, noise_std_test = param_test
 
                 # select subset of nets/conditions to plot and save example sims
-                plot_instance = net_idx < len(params_between_net) * 2
+                plot_instance = ((n_targ_seq == 3) &
+                                 (seq_compression == 0.25) &
+                                 (net_idx < len(params_between_net) * 4))
 
                 metrics, figs = test_trained_net(
                     evoked_input=evoked_input,
