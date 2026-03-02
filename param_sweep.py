@@ -52,7 +52,7 @@ for noise_tau in noise_tau_vals:
         # noise_tau, noise_std
         params_test.append([noise_tau, noise_std])
 
-n_random_nets = 30
+n_random_nets = 20
 n_jobs = 30
 n_test_trials = 10
 output_dir = '/projects/ryth7446/time_coding_output'
