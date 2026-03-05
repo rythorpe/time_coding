@@ -222,14 +222,12 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # these will be held constant across training conditions
         evoked_input_timeseries = torch.zeros((3, n_times, n_hidden))
         perturb_win_mask = times >= 0
-        # generate noisy random process about zero
+        # generate noisy random process about zero to represent post-synaptic
+        # current from exogenous drive
         single_unit_input = generate_noise(3, times[perturb_win_mask], 1,
-                                           noise_tau=0.1, noise_std=1.0)
-        # map to spike rate in (0, 1)
-        single_unit_input = model.transfer_func(single_unit_input, gain=2)
+                                           noise_tau=0.1, noise_std=0.5)
         # scale for each hidden unit using random input weight
-        # set arbitrarily high upper bound
-        evoked_input_timeseries[:, perturb_win_mask, :] = randn_cropped(0, 1, (n_hidden,), lb=0.0, ub=1e3) * single_unit_input
+        evoked_input_timeseries[:, perturb_win_mask, :] = torch.randn(n_hidden) * single_unit_input
 
         # save initial network parameters
         learned_params_init = {
@@ -314,7 +312,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             u_0 = u_0.to(device)
 
             # train network weights
-            n_training_trials = 2500
+            n_training_trials = 3000
             loss_per_iter = list()
             target_acc_reached = False
             for _ in range(n_training_trials):
