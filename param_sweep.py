@@ -225,7 +225,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # generate noisy random process about zero to represent post-synaptic
         # current from exogenous drive
         single_unit_input = generate_noise(3, times[perturb_win_mask], 1,
-                                           noise_tau=0.1, noise_std=0.5)
+                                           noise_tau=0.2, noise_std=0.5)
         # scale for each hidden unit using random input weight
         evoked_input_timeseries[:, perturb_win_mask, :] = torch.randn(n_hidden) * single_unit_input
 
