@@ -31,7 +31,7 @@ for p_rel_std in p_rel_std_vals:
 noise_tau_vals = [0.1]
 noise_std_vals = [0.1]
 beta_vals = [0., 80.]
-n_targ_seq_vals = [1, 2, 3]
+n_targ_seq_vals = [1, 2, 3, 4, 5]
 seq_compression_vals = [0.25, 0.5, 1.0]
 ###
 params_train = list()
@@ -312,7 +312,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             u_0 = u_0.to(device)
 
             # train network weights
-            n_training_trials = 3000
+            n_training_trials = 2500
             loss_per_iter = list()
             target_acc_reached = False
             for _ in range(n_training_trials):
@@ -331,7 +331,63 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 # end training early if accuracy treshold is reached
                 if np.mean(loss_per_iter[-10:]) < 1e-1:
                     target_acc_reached = True
-                    break
+
+                    #### evaluate network at this level of learning ####
+                    # save final trained network parameters
+                    learned_params_final = {
+                        'offset_ih': model.offset_ih.data.detach().clone(),
+                        'W_hh': model.W_hh.data.detach().clone(),
+                        'W_hz': model.W_hz.data.detach().clone()
+                        }
+                    for key, val in learned_params_final.items():
+                        training_grp.create_dataset(key, data=val)
+
+                    # now, test trained network and save metrics
+                    metrics_appended = defaultdict(list)
+                    for param_test in params_test:
+
+                        noise_tau_test, noise_std_test = param_test
+
+                        # select subset of nets/conditions to plot and save example sims
+                        plot_instance = ((n_targ_seq == 3) &
+                                         (seq_compression == 0.25) &
+                                         (net_idx < len(params_between_net) * 4))
+
+                        metrics, figs = test_trained_net(
+                            evoked_input=evoked_input,
+                            targets=targets,
+                            times=times,
+                            model=model,
+                            loss_fn=loss_fn,
+                            h_0=h_0,
+                            r_0=r_0,
+                            u_0=u_0,
+                            dt=dt,
+                            noise_tau=noise_tau_test,
+                            noise_std=noise_std_test,
+                            plot=plot_instance,
+                            n_test_trials=n_test_trials,
+                            inputs_to_plot=common_evoked_input,
+                            )
+                        for key, val in metrics.items():
+                            metrics_appended[key].append(val)
+
+                        if plot_instance is True:
+                            fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
+                            figs[0].savefig(op.join(output_dir, fname_traj_fig))
+                            plt.close(figs[0])
+                            fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
+                            figs[1].savefig(op.join(output_dir, fname_state_fig))
+                            plt.close(figs[1])
+
+                    for test_param_idx, test_param_key in enumerate(params_test_keys):
+                        test_param_vals = np.array(params_test)[:, test_param_idx]
+                        training_grp.create_dataset(test_param_key,
+                                                    data=test_param_vals)
+
+                    for key, val in metrics_appended.items():
+                        training_grp.create_dataset(key, data=val)
+                    ##################################################
 
             # get loss after final update
             # plot model output after training
@@ -340,7 +396,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 plot=False
                 )
             final_loss = sim_stats_post['loss']
-            if np.isfinite(final_loss):
+            if target_acc_reached:
                 sample_new_net = False
             else:
                 print('warning: resampling network')
@@ -349,61 +405,6 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             # save loss trajectory
             training_grp.create_dataset('target_reached', data=target_acc_reached)
             training_grp.create_dataset('loss', data=loss_per_iter)
-
-            # save final trained network parameters
-            learned_params_final = {
-                'offset_ih': model.offset_ih.data.detach().clone(),
-                'W_hh': model.W_hh.data.detach().clone(),
-                'W_hz': model.W_hz.data.detach().clone()
-                }
-            for key, val in learned_params_final.items():
-                training_grp.create_dataset(key, data=val)
-
-            # now, test trained network and save metrics
-            metrics_appended = defaultdict(list)
-            for param_test in params_test:
-
-                noise_tau_test, noise_std_test = param_test
-
-                # select subset of nets/conditions to plot and save example sims
-                plot_instance = ((n_targ_seq == 3) &
-                                 (seq_compression == 0.25) &
-                                 (net_idx < len(params_between_net) * 4))
-
-                metrics, figs = test_trained_net(
-                    evoked_input=evoked_input,
-                    targets=targets,
-                    times=times,
-                    model=model,
-                    loss_fn=loss_fn,
-                    h_0=h_0,
-                    r_0=r_0,
-                    u_0=u_0,
-                    dt=dt,
-                    noise_tau=noise_tau_test,
-                    noise_std=noise_std_test,
-                    plot=plot_instance,
-                    n_test_trials=n_test_trials,
-                    inputs_to_plot=common_evoked_input,
-                    )
-                for key, val in metrics.items():
-                    metrics_appended[key].append(val)
-
-                if plot_instance is True:
-                    fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
-                    figs[0].savefig(op.join(output_dir, fname_traj_fig))
-                    plt.close(figs[0])
-                    fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
-                    figs[1].savefig(op.join(output_dir, fname_state_fig))
-                    plt.close(figs[1])
-
-            for test_param_idx, test_param_key in enumerate(params_test_keys):
-                test_param_vals = np.array(params_test)[:, test_param_idx]
-                training_grp.create_dataset(test_param_key,
-                                            data=test_param_vals)
-
-            for key, val in metrics_appended.items():
-                training_grp.create_dataset(key, data=val)
 
     print(f'training + eval of net instance {net_idx} complete')
 
