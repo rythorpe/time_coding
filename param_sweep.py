@@ -328,11 +328,11 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                     )
                 loss_per_iter.append(loss)
 
-                # end training early if accuracy treshold is reached
-                if np.mean(loss_per_iter[-10:]) < 1e-1:
+                ##### evaluate network when accuracy treshold is reached #####
+                if ((np.mean(loss_per_iter[-10:]) < 1e-1) and (target_acc_reached == False)):
+
                     target_acc_reached = True
 
-                    #### evaluate network at this level of learning ####
                     # save final trained network parameters
                     learned_params_final = {
                         'offset_ih': model.offset_ih.data.detach().clone(),
@@ -387,7 +387,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
                     for key, val in metrics_appended.items():
                         training_grp.create_dataset(key, data=val)
-                    ##################################################
+                ##################################################
 
             # get loss after final update
             # plot model output after training
