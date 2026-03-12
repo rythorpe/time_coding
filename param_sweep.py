@@ -396,7 +396,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 plot=False
                 )
             final_loss = sim_stats_post['loss']
-            if target_acc_reached:
+            if np.isfinite(final_loss):
                 sample_new_net = False
             else:
                 print('warning: resampling network')
