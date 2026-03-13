@@ -220,11 +220,12 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
         # define input to network
         # these will be held constant across training conditions
-        evoked_input_timeseries = torch.zeros((3, n_times, n_hidden))
+        n_max_contexts = np.max(n_targ_seq_vals)
+        evoked_input_timeseries = torch.zeros((n_max_contexts, n_times, n_hidden))
         perturb_win_mask = times >= 0
         # generate noisy random process about zero to represent post-synaptic
         # current from exogenous drive
-        single_unit_input = generate_noise(3, times[perturb_win_mask], 1,
+        single_unit_input = generate_noise(n_max_contexts, times[perturb_win_mask], 1,
                                            noise_tau=0.2, noise_std=0.5)
         # scale for each hidden unit using random input weight
         evoked_input_timeseries[:, perturb_win_mask, :] = torch.randn(n_hidden) * single_unit_input
@@ -275,7 +276,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # generate big batch of OU process timeseries at the beginning to
             # draw from during training
-            n_rand_trials = n_batch_trials * 3
+            n_rand_trials = n_batch_trials * n_max_contexts
             n_rand_units = n_hidden * 3
             noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
                                          noise_tau, noise_std, dt=1e-4)  # n_trials, n_times, n_dim
