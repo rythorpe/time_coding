@@ -276,9 +276,8 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # generate big batch of OU process timeseries at the beginning to
             # draw from during training
-            n_rand_trials = n_batch_trials * n_max_contexts
-            n_rand_units = n_hidden * 3
-            noise_batch = generate_noise(n_rand_trials, times, n_rand_units,
+            n_rand_units = n_hidden * 10
+            noise_batch = generate_noise(1, times, n_rand_units,
                                          noise_tau, noise_std, dt=1e-4)  # n_trials, n_times, n_dim
 
             # define output targets, one set of Gaussian peaks for each batch trial
@@ -317,10 +316,12 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             loss_per_iter = list()
             target_acc_reached = False
             for _ in range(n_training_trials):
-                rand_trial_idxs = torch.randperm(n_rand_trials)[:n_batch_trials]
-                rand_units_idxs = torch.randperm(n_rand_units)[:n_hidden]
-                noise = noise_batch[rand_trial_idxs, ...]
-                noise = noise[:, :, rand_units_idxs]
+                rand_units_idxs = torch.randperm(n_rand_units)[:n_hidden * n_batch_trials]
+                noise = torch.zeros_like(evoked_input)
+                for trial_idx in range(n_batch_trials):
+                    first_idx = trial_idx * n_hidden
+                    last_idx = (trial_idx + 1) * n_hidden
+                    noise[trial_idx, :, :] = noise_batch[:, :, rand_units_idxs[first_idx:last_idx]]
                 inputs = evoked_input + noise
                 inputs = inputs.to(device)
                 loss, _, _ = train_bptt(
