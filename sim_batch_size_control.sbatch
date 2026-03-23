@@ -2,7 +2,7 @@
 
 #SBATCH --time=48:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=10
+#SBATCH --ntasks=40
 #SBATCH --mem=200G
 #SBATCH --job-name=stp_rnn_sim
 #SBATCH --partition=blanca-appm
