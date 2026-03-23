@@ -120,16 +120,24 @@ def generate_noise(n_trials, times, n_dim, noise_tau, noise_std,
               'for final output.')
     time_duration = times[-1] - times[0] + dt_out
     n_times = int(np.round(time_duration / dt))
-
-    # simulate batch of noise with a small integration step size
-    noise_batch = OU_process(n_trials=n_trials, n_times=n_times,
-                             n_dim=n_dim, dt=dt,
-                             noise_tau=noise_tau, noise_std=noise_std,
-                             include_corr_noise=include_corr_noise)
-
-    # downsample
+    # will use this to downsample after simulating timeseries
     decimation_step = int(np.round(dt_out / dt))
-    return noise_batch[:, ::decimation_step, :]
+    n_times_output = int(n_times // decimation_step)
+
+    # simulate each trial individually: less computationally efficient but
+    # saves memory
+    noise_batch = torch.zeros((n_trials, n_times_output, n_dim))
+    for trial_idx in range(n_trials):
+        # simulate batch of noise with a small integration step size
+        noise_trial = OU_process(n_trials=1, n_times=n_times,
+                                 n_dim=n_dim, dt=dt,
+                                 noise_tau=noise_tau, noise_std=noise_std,
+                                 include_corr_noise=include_corr_noise)
+        # downsample
+        noise_batch[trial_idx, ...] = noise_trial[0, ::decimation_step, :]
+
+
+    return noise_batch
 
 
 def get_commit_hash():
