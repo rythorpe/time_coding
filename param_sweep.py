@@ -284,7 +284,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             # set std s.t. amplitude decays to 1/e at intersection with next target
             # tile center of target delays spanning sim duration (minus margins)
             targets = torch.zeros(n_targ_seq, n_times, n_outputs)
-            # largest to smallest; default to smallest delay when n_targ_seq=1
+            # smallest to largest; default to smallest delay when n_targ_seq=1
             last_delays = np.linspace(1.0 * seq_compression, 1.0, n_targ_seq)
             for seq_idx in range(n_targ_seq):
                 last_delay = last_delays[seq_idx]
