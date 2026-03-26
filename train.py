@@ -82,6 +82,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     init_params = [param.detach().numpy() for param in model.parameters()
                    if param.requires_grad]
     W_hh_orig = model.W_hh.data.detach().clone()
+    W_hz_orig = model.W_hz.data.detach().clone()
 
     state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
     z_t = state_vars[3]
@@ -94,7 +95,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
     # torch.nn.init.ones_(model.presyn_scaling)
     optimizer.zero_grad()
 
-    # enforce constraints on learned recurrent weights
+    # enforce constraints on learned recurrent and output weights
     with torch.no_grad():
         # enforce Dale's Law by preventing E/I units from changing valance
         e_weights = model.W_hh[model.W_hh_mask == 1]
@@ -118,6 +119,9 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
 
         model.W_hh[source_idxs[rand_idxs_source],
                    target_idxs[rand_idxs_targ]] = params_reset
+        
+        # output weights
+        model.W_hz.copy_(torch.nn.functional.relu(model.W_hz) * model.W_hz_mask)
 
     return loss.item(), init_params, state_vars
 

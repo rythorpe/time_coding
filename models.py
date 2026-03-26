@@ -77,7 +77,9 @@ class RNN(torch.nn.Module):
 
         # initialize output weights
         w_output_std = 1 / np.sqrt(n_hidden)
-        torch.nn.init.normal_(self.W_hz, mean=0.0, std=w_output_std)
+        # torch.nn.init.normal_(self.W_hz, mean=0.0, std=w_output_std)
+        with torch.no_grad():
+            self.W_hz[:] = 1 / (p_e * n_hidden / n_outputs)
 
         # create mask for specifying hidden subsets that map to distinct outputs
         self.W_hz_mask = torch.zeros_like(self.W_hz)
@@ -86,6 +88,9 @@ class RNN(torch.nn.Module):
             first_source_idx = n_sources_per_output * output_idx
             last_source_idx = n_sources_per_output * output_idx + n_sources_per_output
             self.W_hz_mask[output_idx, first_source_idx:last_source_idx] = 1
+        self.W_hz_mask[:, presyn_valence[0, :] == -1] = 0
+        with torch.no_grad():
+            self.W_hz.copy_(self.W_hz * self.W_hz_mask)
 
         # create registered buffers (i.e., fancy attributes that need to live
         # on the same device as self
@@ -158,8 +163,8 @@ class RNN(torch.nn.Module):
                 h_transfer = self.transfer_func(h_t,
                                                 gain=self.activation_gain,
                                                 thresh=self.activation_thresh)
-                output_weight = self.W_hz * self.W_hz_mask
-                z_t_all[trial_idx, t_idx, :] = h_transfer @ output_weight.T
+
+                z_t_all[trial_idx, t_idx, :] = h_transfer @ self.W_hz.T
 
                 # save for next time step
                 r_t_minus_1 = r_t
