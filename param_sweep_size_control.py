@@ -44,17 +44,21 @@ for beta in beta_vals:
                     # beta, noise_tau, noise_std, n_targ_seq, seq_compression
                     params_train.append([beta, noise_tau, noise_std, n_targ_seq, seq_compression])
 
+###
+noise_tau_test_vals = [0.1]
+noise_std_test_vals = [0.0]
+###
 params_test = list()
 params_test_keys = ['noise_tau_test', 'noise_std_test']
 # NB: we current test on each value of noise we train on
-for noise_tau in noise_tau_vals:
-    for noise_std in noise_std_vals:
+for noise_tau_test in noise_tau_test_vals:
+    for noise_std_test in noise_std_test_vals:
         # noise_tau, noise_std
-        params_test.append([noise_tau, noise_std])
+        params_test.append([noise_tau_test, noise_std_test])
 
 n_random_nets = 20
 n_jobs = 40
-n_test_trials = 10
+n_test_trials = 1  # for now, test on single trial w/o noise (noise_std_test=0)
 output_dir = '/projects/ryth7446/time_coding_output'
 # n_random_nets = 2
 # n_jobs = 4
@@ -105,19 +109,19 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     mean_syn_effs = list()
     for train_dim_idx in range(n_batch_trials):
 
-        hidden_sr_train_dim = hidden_sr[train_dim_idx::n_batch_trials, ...]
-        syn_eff_train_dim = syn_eff[train_dim_idx::n_batch_trials, ...]
-        output_train_dim = output[train_dim_idx::n_batch_trials, ...]
-        targets_train_dim = targets[train_dim_idx::n_batch_trials, ...]
+        hidden_sr_train_dim = hidden_sr[train_dim_idx::n_batch_trials, ...].numpy()
+        syn_eff_train_dim = syn_eff[train_dim_idx::n_batch_trials, ...].numpy()
+        output_train_dim = output[train_dim_idx::n_batch_trials, ...].detach()
+        targets_train_dim = targets[train_dim_idx::n_batch_trials, ...].detach()
 
         peak_idxs = targets_train_dim[0, :, :].argmax(dim=0)
         seq_t_mask = np.zeros((n_times,))
         seq_t_mask[peak_idxs[0]:peak_idxs[-1]] = 1
 
         # mean spike rate across trials and time (keep unit dim)
-        mean_rates.append(hidden_sr_train_dim[:, seq_t_mask == 1, :].mean(dim=(0, 1)))
+        mean_rates.append(np.mean(hidden_sr_train_dim[:, seq_t_mask == 1, :], axis=(0, 1)))
         # mean synaptic efficacy across trials and time (keep unit dim)
-        mean_syn_effs.append(syn_eff_train_dim[:, seq_t_mask == 1, :].mean(dim=(0, 1)))
+        mean_syn_effs.append(np.mean(syn_eff_train_dim[:, seq_t_mask == 1, :], axis=(0, 1)))
 
         # final MSE
         mse.append(loss_fn(output_train_dim[:, times > 0, :],
@@ -127,7 +131,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
         test_trial_stack = []
         for trial_idx in range(n_test_trials):
             test_trial_stack.append(hidden_sr_train_dim[trial_idx, ...])
-        test_trial_stack = torch.cat(test_trial_stack, dim=1)
+        test_trial_stack = np.concatenate(test_trial_stack, axis=1)
         training_batch_dims.append(est_dimensionality(test_trial_stack))
     avg_train_batch_dim = np.mean(training_batch_dims)
 
@@ -135,7 +139,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     all_trial_stack = list()
     for trial_idx in range(n_batch_trials * n_test_trials):
         all_trial_stack.append(hidden_sr[trial_idx, ...])
-    all_trial_stack = torch.cat(all_trial_stack, dim=1)
+    all_trial_stack = np.concatenate(all_trial_stack, axis=1)
     batch_dim = est_dimensionality(all_trial_stack)
 
     metrics = {'mean_rate': mean_rates, 'mean_syn_eff': mean_syn_effs,
@@ -149,9 +153,9 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
             ext_in_trial = inputs.detach().numpu()[-1]
         else:
             ext_in_trial = inputs_to_plot.detach().numpy()[-1]
-        hidden_sr_trial = model.transfer_func(h_t).detach().numpy()[-1]
-        syn_eff_trial = r_t.detach().numpy()[-1] * u_t.detach().numpy()[-1]
-        outputs_trial = z_t.detach().numpy()[-1]
+        hidden_sr_trial = hidden_sr.numpy()[-1]
+        syn_eff_trial = syn_eff.numpy()[-1]
+        outputs_trial = output.numpy()[-1]
         targets_trial = targets.detach().numpy()[-1]
 
         fig_traj = plot_state_traj(perturb=ext_in_trial,
