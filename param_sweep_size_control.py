@@ -373,7 +373,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                             noise_std=noise_std_test,
                             plot=plot_instance,
                             n_test_trials=n_test_trials,
-                            inputs_to_plot=common_evoked_input,
+                            inputs_to_plot=common_evoked_input
                             )
                         for key, val in metrics.items():
                             metrics_appended[key].append(val)
