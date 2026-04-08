@@ -211,7 +211,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     n_times = len(times)
 
     # define network hyperparameters
-    n_hidden, n_outputs = 900, 10
+    n_hidden, n_outputs = 1500, 10
 
     print(f'begin training session for net instance {net_idx}')
 
