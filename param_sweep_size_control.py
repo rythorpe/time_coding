@@ -30,7 +30,7 @@ for p_rel_std in p_rel_std_vals:
 ###
 noise_tau_vals = [0.1]
 noise_std_vals = [0.1]
-beta_vals = [0.]
+beta_vals = [0., 80.]
 n_targ_seq_vals = [1, 2, 3, 4, 5]
 seq_compression_vals = [0.25, 0.5, 1.0]
 ###
