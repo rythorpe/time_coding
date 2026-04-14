@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=40
 #SBATCH --mem=200G
-#SBATCH --job-name=stp_rnn_sim
+#SBATCH --job-name=stp_rnn_sim_standard
 #SBATCH --partition=blanca-appm
 #SBATCH --account=blanca-appm
 #SBATCH --qos=blanca-appm
