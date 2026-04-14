@@ -8,7 +8,7 @@ from utils import randn_cropped
 
 class RNN(torch.nn.Module):
     def __init__(self, n_hidden=300, n_outputs=1,
-                 p_rel_std=0.15):
+                 p_rel_params=(0.35, 0.15)):
         super().__init__()
         self.n_hidden = n_hidden
         self.n_outputs = n_outputs
@@ -36,7 +36,7 @@ class RNN(torch.nn.Module):
         # Tsodyks & Markram PNAS 1997
         # self.p_rel = torch.empty(n_hidden)
         # torch.nn.init.uniform_(self.p_rel, a=p_rel_range[0], b=p_rel_range[1])
-        p_rel_mean = 0.35
+        p_rel_mean, p_rel_std = p_rel_params
         self.p_rel = randn_cropped(p_rel_mean, p_rel_std, (n_hidden,),
                                    lb=0.0, ub=1.0)
 
