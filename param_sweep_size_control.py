@@ -59,7 +59,7 @@ for noise_tau_test in noise_tau_test_vals:
 n_random_nets = 20
 n_jobs = 40
 n_test_trials = 1  # for now, test on single trial w/o noise (noise_std_test=0)
-output_dir = '/projects/ryth7446/time_coding_output'
+output_dir = '/projects/ryth7446/time_coding_output/size_control'
 # n_random_nets = 2
 # n_jobs = 4
 # n_test_trials = 10
@@ -211,7 +211,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     n_times = len(times)
 
     # define network hyperparameters
-    n_hidden, n_outputs = 1500, 10
+    n_hidden, n_outputs = 900, 10
 
     print(f'begin training session for net instance {net_idx}')
 

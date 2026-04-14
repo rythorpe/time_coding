@@ -8,8 +8,8 @@
 #SBATCH --partition=blanca-appm
 #SBATCH --account=blanca-appm
 #SBATCH --qos=blanca-appm
-#SBATCH -o slurm.out
-#SBATCH -e slurm.err
+#SBATCH -o slurm_standard.out
+#SBATCH -e slurm_standard.err
 
 module purge
 module load anaconda
