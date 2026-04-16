@@ -69,6 +69,9 @@ class RNN(torch.nn.Module):
         # distribution centered at zero
         w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
         weight_magnitude = torch.abs(torch.randn_like(self.W_hh) * w_hidden_std)
+        # norm_mean = np.log10(0.15)
+        # norm_std = 0.35
+        # weight_magnitude = 10 ** (norm_mean + torch.randn_like(self.W_hh) * norm_std)
         # upscale mag of i_units for balance
         weight_magnitude[:, e_units == 0] *= p_e / (1 - p_e)
         # finally, set magnitude and valence of synaptic weight
@@ -76,7 +79,7 @@ class RNN(torch.nn.Module):
             self.W_hh.copy_(weight_magnitude * self.W_hh_mask)
 
         # initialize output weights
-        w_output_std = 1 / np.sqrt(n_hidden)
+        # w_output_std = 1 / np.sqrt(n_hidden)
         # torch.nn.init.normal_(self.W_hz, mean=0.0, std=w_output_std)
         with torch.no_grad():
             self.W_hz[:] = 1 / (p_e * n_hidden / n_outputs)

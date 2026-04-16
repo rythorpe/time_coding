@@ -119,7 +119,7 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
 
         model.W_hh[source_idxs[rand_idxs_source],
                    target_idxs[rand_idxs_targ]] = params_reset
-        
+
         # output weights
         model.W_hz.copy_(torch.nn.functional.relu(model.W_hz) * model.W_hz_mask)
 
