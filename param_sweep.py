@@ -230,7 +230,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
         # these will be held constant across training conditions
         n_max_contexts = np.max(n_targ_seq_vals)
         evoked_input_timeseries = torch.zeros((n_max_contexts, n_times, n_hidden))
-        perturb_win_mask = times >= 0
+        perturb_win_mask = np.logical_and(times >= 0,  times < 1.0)
         # generate noisy random process about zero to represent post-synaptic
         # current from exogenous drive
         single_unit_input = generate_noise(n_max_contexts, times[perturb_win_mask], 1,
