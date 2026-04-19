@@ -67,11 +67,13 @@ class RNN(torch.nn.Module):
         self.W_hh_mask *= presyn_valence
         # sample magnitude of post-synaptic weight from cropped normal
         # distribution centered at zero
-        w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
-        weight_magnitude = torch.abs(torch.randn_like(self.W_hh) * w_hidden_std)
+        # w_hidden_std = 1 / np.sqrt(prob_c * n_hidden)
+        # weight_magnitude = torch.abs(torch.randn_like(self.W_hh) * w_hidden_std)
         # norm_mean = np.log10(0.15)
         # norm_std = 0.35
         # weight_magnitude = 10 ** (norm_mean + torch.randn_like(self.W_hh) * norm_std)
+        exp_dist = torch.distributions.exponential.Exponential(torch.tensor([8.0]))
+        weight_magnitude = exp_dist.sample([n_hidden, n_hidden]).squeeze()
         # upscale mag of i_units for balance
         weight_magnitude[:, e_units == 0] *= p_e / (1 - p_e)
         # finally, set magnitude and valence of synaptic weight
