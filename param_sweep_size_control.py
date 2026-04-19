@@ -76,7 +76,8 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
 
     n_batch_trials, n_times, _ = evoked_input.shape
     n_hidden, n_outputs = model.n_hidden, model.n_outputs
-    noise = generate_noise(n_batch_trials * n_test_trials, times, n_hidden,
+    n_total_trials = n_batch_trials * n_test_trials
+    noise = generate_noise(n_total_trials, times, n_hidden,
                            noise_tau, noise_std, dt=1e-4)
     # tile across test trials
     inputs = torch.tile(evoked_input, dims=(n_test_trials, 1, 1)) + noise
@@ -147,38 +148,41 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
                'dim_index_all_trial_agg': batch_dim}
 
     if plot is True:
-        # plot last batch trial, which should be the one with the shortest
-        # temporal sequence
-        if inputs_to_plot is None:
-            ext_in_trial = inputs.detach().numpu()[-1]
-        else:
-            ext_in_trial = inputs_to_plot.detach().numpy()[-1]
-        hidden_sr_trial = hidden_sr.numpy()[-1]
-        syn_eff_trial = syn_eff.numpy()[-1]
-        outputs_trial = output.numpy()[-1]
-        targets_trial = targets.detach().numpy()[-1]
-
-        fig_traj = plot_state_traj(perturb=ext_in_trial,
-                                   h_units=hidden_sr_trial,
-                                   syn_eff=syn_eff_trial,
-                                   outputs=outputs_trial,
-                                   targets=targets_trial,
-                                   times=times)
-
         # sort hidden units according to peak activity for plotting
         peak_t_idx = list()
         for h_idx in range(n_hidden):
             # select 1st time index the threshhold is cross
-            max_idx = hidden_sr_trial[times > 0, h_idx].argmax()
+            max_idx = hidden_sr.numpy()[-1, times > 0, h_idx].argmax()
             peak_t_idx.append(max_idx)
         sort_idxs = np.argsort(peak_t_idx)
 
-        fig_state = plot_all_units(h_units=hidden_sr_trial[:, sort_idxs],
-                                   syn_eff=syn_eff_trial[:, sort_idxs],
-                                   outputs=outputs_trial,
-                                   targets=targets_trial,
-                                   times=times)
-        figs = (fig_traj, fig_state)
+        figs = []
+        for trial_idx in range(n_total_trials):
+            # plot last batch trial, which should be the one with the shortest
+            # temporal sequence
+            if inputs_to_plot is None:
+                ext_in_trial = inputs.detach().numpu()[trial_idx]
+            else:
+                ext_in_trial = inputs_to_plot.detach().numpy()[trial_idx]
+            hidden_sr_trial = hidden_sr.numpy()[trial_idx]
+            syn_eff_trial = syn_eff.numpy()[trial_idx]
+            outputs_trial = output.numpy()[trial_idx]
+            targets_trial = targets.detach().numpy()[trial_idx]
+
+            fig_traj = plot_state_traj(perturb=ext_in_trial,
+                                       h_units=hidden_sr_trial,
+                                       syn_eff=syn_eff_trial,
+                                       outputs=outputs_trial,
+                                       targets=targets_trial,
+                                       times=times)
+
+            fig_state = plot_all_units(h_units=hidden_sr_trial[:, sort_idxs],
+                                       syn_eff=syn_eff_trial[:, sort_idxs],
+                                       outputs=outputs_trial,
+                                       targets=targets_trial,
+                                       times=times)
+
+            figs.append((fig_traj, fig_state))
     else:
         figs = None
 
@@ -379,12 +383,13 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                             metrics_appended[key].append(val)
 
                         if plot_instance is True:
-                            fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
-                            figs[0].savefig(op.join(output_dir, fname_traj_fig))
-                            plt.close(figs[0])
-                            fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}.pdf'
-                            figs[1].savefig(op.join(output_dir, fname_state_fig))
-                            plt.close(figs[1])
+                            for trial_idx, trial_figs in enumerate(figs):
+                                fname_traj_fig = f'fig_ts_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}_trial{trial_idx:02d}.pdf'
+                                trial_figs[0].savefig(op.join(output_dir, fname_traj_fig))
+                                plt.close(trial_figs[0])
+                                fname_state_fig = f'fig_state_net{net_idx:02d}_beta{beta:02.1f}_n_targs{n_targ_seq:1d}_seq_compr{seq_compression:.2f}_trial{trial_idx:02d}.pdf'
+                                trial_figs[1].savefig(op.join(output_dir, fname_state_fig))
+                                plt.close(trial_figs[1])
 
                     for test_param_idx, test_param_key in enumerate(params_test_keys):
                         test_param_vals = np.array(params_test)[:, test_param_idx]
