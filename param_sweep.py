@@ -19,13 +19,15 @@ from train import sim_batch, train_bptt, test_and_get_stats
 from viz import plot_state_traj, plot_all_units
 
 ###
-p_rel_params_vals = [(0.35, 0.15), (0.35, 0.03), (0.7, 0.03)]
+p_rel_mean_vals = [0.35, 0.35, 0.7]
+p_rel_std_vals = [0.15, 0.03, 0.03]
 ###
 params_between_net = list()
-params_between_net_keys = ['p_rel_params']
-for p_rel_params in p_rel_params_vals:
-    # p_rel_params: (mean, std)
-    params_between_net.append([p_rel_params])
+params_between_net_keys = ['p_rel_mean', 'p_rel_std']
+# iterate over p_rel params together instead of independently
+for p_rel_mean, p_rel_std in zip(p_rel_mean_vals, p_rel_std_vals):
+    # p_rel_mean, p_rel_std
+    params_between_net.append([p_rel_mean, p_rel_std])
 
 ###
 noise_tau_vals = [0.1]
@@ -198,7 +200,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     '''Sweeps over training conditions for a given random net, then runs tests
      each trained net and saves important metrics for each test condition.'''
 
-    p_rel_mean, p_rel_std = param_net[0]
+    p_rel_mean, p_rel_std = param_net
 
     # create HDF5 file for saving results
     fname_local = ('data_' + f'net{net_idx:02d}_' +
