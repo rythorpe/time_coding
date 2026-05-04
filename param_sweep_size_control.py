@@ -59,7 +59,7 @@ for noise_tau_test in noise_tau_test_vals:
         params_test.append([noise_tau_test, noise_std_test])
 
 n_random_nets = 20
-n_jobs = 40
+n_jobs = 20
 n_test_trials = 1  # for now, test on single trial w/o noise (noise_std_test=0)
 output_dir = '/projects/ryth7446/time_coding_output/size_control'
 # n_random_nets = 2
