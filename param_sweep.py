@@ -217,7 +217,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
     n_times = len(times)
 
     # define network hyperparameters
-    n_hidden, n_outputs = 600, 10
+    n_hidden, n_outputs = 500, 10
 
     print(f'begin training session for net instance {net_idx}')
 
@@ -404,8 +404,9 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # get loss after final update
             # plot model output after training
+            evoked_input = evoked_input.to(device)  # this wasn't necessarily moved to correct device earlier
             _, sim_stats_post = test_and_get_stats(
-                inputs, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
+                evoked_input, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
                 plot=False
                 )
             final_loss = sim_stats_post['loss']

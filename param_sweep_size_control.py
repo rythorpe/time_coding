@@ -59,7 +59,7 @@ for noise_tau_test in noise_tau_test_vals:
         params_test.append([noise_tau_test, noise_std_test])
 
 n_random_nets = 20
-n_jobs = 20
+n_jobs = 40
 n_test_trials = 1  # for now, test on single trial w/o noise (noise_std_test=0)
 output_dir = '/projects/ryth7446/time_coding_output/size_control'
 # n_random_nets = 2
@@ -128,26 +128,10 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
 
         # final MSE
         mse.append(loss_fn(output_train_dim[:, times > 0, :],
-                           targets_train_dim[:, times > 0, :]).item())
-
-        # dimensionality of hidden unit responses across test trials for a given training batch trial
-        test_trial_stack = []
-        for trial_idx in range(n_test_trials):
-            test_trial_stack.append(hidden_sr_train_dim[trial_idx, ...])
-        test_trial_stack = np.concatenate(test_trial_stack, axis=1)
-        training_batch_dims.append(est_dimensionality(test_trial_stack))
-    avg_train_batch_dim = np.mean(training_batch_dims)
-
-    # dimensionality of hidden unit responses across all test and training batch trials
-    all_trial_stack = list()
-    for trial_idx in range(n_batch_trials * n_test_trials):
-        all_trial_stack.append(hidden_sr[trial_idx, ...])
-    all_trial_stack = np.concatenate(all_trial_stack, axis=1)
-    batch_dim = est_dimensionality(all_trial_stack)
+                   targets_train_dim[:, times > 0, :]).item())
 
     metrics = {'mean_rate': mean_rates, 'mean_syn_eff': mean_syn_effs,
-               'mse': mse, 'avg_dim_index_test_trial_agg': avg_train_batch_dim,
-               'dim_index_all_trial_agg': batch_dim}
+               'mse': mse}
 
     if plot is True:
         # sort hidden units according to peak activity for plotting
@@ -404,8 +388,9 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
 
             # get loss after final update
             # plot model output after training
+            evoked_input = evoked_input.to(device)  # this wasn't necessarily moved to correct device earlier
             _, sim_stats_post = test_and_get_stats(
-                inputs, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
+                evoked_input, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
                 plot=False
                 )
             final_loss = sim_stats_post['loss']
