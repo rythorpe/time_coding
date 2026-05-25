@@ -76,12 +76,12 @@ class RNN(torch.nn.Module):
             self.W_hh.copy_(weight_magnitude * self.W_hh_mask)
 
         # initialize output weights
-        w_output_std = 1 / np.sqrt(n_hidden)
+        n_sources_per_output = self.n_hidden // n_outputs
+        w_output_std = 1 / np.sqrt(n_sources_per_output)
         torch.nn.init.normal_(self.W_hz, mean=0.0, std=w_output_std)
 
         # create mask for specifying hidden subsets that map to distinct outputs
         self.W_hz_mask = torch.zeros_like(self.W_hz)
-        n_sources_per_output = self.n_hidden // n_outputs
         for output_idx in range(n_outputs):
             first_source_idx = n_sources_per_output * output_idx
             last_source_idx = n_sources_per_output * output_idx + n_sources_per_output
@@ -98,7 +98,7 @@ class RNN(torch.nn.Module):
         '''
         return torch.sigmoid(gain * (h - thresh))
 
-    def forward(self, I, h_0, r_0, u_0, n_0=None, dt=0.001,
+    def forward(self, I, h_0, r_0, u_0, dt=0.001, model_version='stp',
                 return_deriv=False):
 
         # assuming input has shape (n_trials, n_times, n_hidden)
@@ -127,30 +127,40 @@ class RNN(torch.nn.Module):
             # begin integration over time
             for t_idx in range(0, seq_len):
 
-                # pre-syn STP: depletion of resources (depression)
-                drdt = ((1 - r_t_minus_1) / self.tau_depr
-                        - self.beta * u_t_minus_1 * r_t_minus_1 * h_transfer)
-                r_t = r_t_minus_1 + drdt * dt
-                r_t_all[trial_idx, t_idx, :] = r_t.clone()
+                if model_version == 'stp':
+                    # pre-syn STP: depletion of resources (depression)
+                    drdt = ((1 - r_t_minus_1) / self.tau_depr
+                            - self.beta * u_t_minus_1 * r_t_minus_1 * h_transfer)
+                    r_t = r_t_minus_1 + drdt * dt
 
-                # pre-syn STP: augmentation of utilization (facilitation)
-                dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                        + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
-                u_t = u_t_minus_1 + dudt * dt
-                u_t_all[trial_idx, t_idx, :] = u_t.clone()
+                    # pre-syn STP: augmentation of utilization (facilitation)
+                    dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
+                            + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
+                    u_t = u_t_minus_1 + dudt * dt
 
-                # calculate total transfer weight
-                effective_weight = (r_t_minus_1 * u_t_minus_1 *
-                                    self.presyn_scaling *
-                                    self.gain * self.W_hh)
+                    # calculate total reccurent input (post-syn current)
+                    reccurent_input = h_transfer @ (r_t_minus_1 *
+                                                    u_t_minus_1 *
+                                                    self.presyn_scaling *
+                                                    self.gain * self.W_hh).T
+                elif model_version == 'alt_stp':
+                    # fast timescale filter
+                    drdt = (-r_t_minus_1 + h_transfer) / self.tau_depr
+                    r_t = r_t_minus_1 + drdt * dt
+
+                    # slow timescale filter
+                    dudt = (-u_t_minus_1 + r_t_minus_1) / self.tau_facil
+                    u_t = u_t_minus_1 + dudt * dt
+
+                    # calculate total reccurent input (post-syn current)
+                    reccurent_input = u_t_minus_1 @ (self.gain * self.W_hh).T
 
                 # post-synaptic integration
                 ext_in = I[trial_idx, t_idx, :] + self.offset_ih
                 dhdt = (-h_t_minus_1
-                        + h_transfer @ effective_weight.T
+                        + reccurent_input
                         + ext_in) / self.tau
                 h_t = h_t_minus_1 + dhdt * dt
-                h_t_all[trial_idx, t_idx, :] = h_t.clone()
 
                 # compute firing rate response (h) here so that it can be
                 # passed to both z (output unit) on the current time step and
@@ -159,12 +169,16 @@ class RNN(torch.nn.Module):
                                                 gain=self.activation_gain,
                                                 thresh=self.activation_thresh)
                 output_weight = self.W_hz * self.W_hz_mask
-                z_t_all[trial_idx, t_idx, :] = h_transfer @ output_weight.T
 
-                # save for next time step
+                # update state in time
                 r_t_minus_1 = r_t
                 u_t_minus_1 = u_t
                 h_t_minus_1 = h_t
+
+                r_t_all[trial_idx, t_idx, :] = r_t.clone()
+                u_t_all[trial_idx, t_idx, :] = u_t.clone()
+                h_t_all[trial_idx, t_idx, :] = h_t.clone()
+                z_t_all[trial_idx, t_idx, :] = h_transfer @ output_weight.T
 
         if return_deriv is True:
             return dhdt, drdt, dudt

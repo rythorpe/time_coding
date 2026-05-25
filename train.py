@@ -76,14 +76,15 @@ class RLS:
 
 
 def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
-               h_0, r_0, u_0, dt):
+               h_0, r_0, u_0, dt, model_version):
     model.train()
 
     init_params = [param.detach().numpy() for param in model.parameters()
                    if param.requires_grad]
     W_hh_orig = model.W_hh.data.detach().clone()
 
-    state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+    state_vars = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
+                       model_version=model_version)
     z_t = state_vars[3]
     loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
     loss.backward()
@@ -149,12 +150,13 @@ def sim_batch(inputs, model, h_0, r_0, u_0, dt):
 
 
 def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
-                       dt, plot=True, inputs_to_plot=None):
+                       dt, model_version, plot=True, inputs_to_plot=None):
     model.eval()
 
     with torch.no_grad():
         # simulate and calculate total output error
-        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
+                                   model_version=model_version)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
 
     try:
