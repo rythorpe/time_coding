@@ -100,7 +100,8 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     model.eval()
     with torch.no_grad():
         # simulate network
-        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt)
+        h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
+                                   model_version='stp')
 
     hidden_sr = model.transfer_func(h_t).detach()
     syn_eff = r_t.detach() * u_t.detach()
@@ -320,7 +321,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 inputs = inputs.to(device)
                 loss, _, _ = train_bptt(
                     inputs, targets, times, model, loss_fn, optimizer,
-                    h_0, r_0, u_0, dt=dt
+                    h_0, r_0, u_0, dt=dt, model_version='stp'
                     )
                 loss_per_iter.append(loss)
 
@@ -390,8 +391,8 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             # plot model output after training
             evoked_input = evoked_input.to(device)  # this wasn't necessarily moved to correct device earlier
             _, sim_stats_post = test_and_get_stats(
-                evoked_input, targets, times, model, loss_fn, h_0, r_0, u_0, dt=dt,
-                plot=False
+                evoked_input, targets, times, model, loss_fn, h_0, r_0, u_0,
+                dt=dt, model_version='stp', plot=False
                 )
             final_loss = sim_stats_post['loss']
             if np.isfinite(final_loss):
