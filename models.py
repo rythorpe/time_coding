@@ -45,6 +45,18 @@ class RNN(torch.nn.Module):
         # each presynaptic unit on equal footing
         self.presyn_scaling = 1 / self.p_rel
 
+        # set tau_syn values for alt filtering model
+        u_rand = torch.rand(n_hidden)
+        f_x_rand = torch.rand(n_hidden)
+        self.tau_syn_depr = (self.tau_depr / (1 + (self.tau_depr *
+                                                   self.beta *
+                                                   u_rand *
+                                                   f_x_rand)))
+        self.tau_syn_facil = (self.tau_facil / (1 + (self.tau_facil *
+                                                     self.beta *
+                                                     self.p_rel *
+                                                     f_x_rand)))
+
         # initialize hidden weights
         # first, determine valence of presyn units for Dale's Law
         p_e = 0.8  # 4:1 E:I ratio
@@ -145,11 +157,11 @@ class RNN(torch.nn.Module):
                                                     self.gain * self.W_hh).T
                 elif model_version == 'alt_stp':
                     # fast timescale filter
-                    drdt = (-r_t_minus_1 + h_transfer) / self.tau_depr
+                    drdt = (-r_t_minus_1 + h_transfer) / self.tau_syn_depr
                     r_t = r_t_minus_1 + drdt * dt
 
                     # slow timescale filter
-                    dudt = (-u_t_minus_1 + r_t_minus_1) / self.tau_facil
+                    dudt = (-u_t_minus_1 + r_t_minus_1) / self.tau_syn_facil
                     u_t = u_t_minus_1 + dudt * dt
 
                     # calculate total reccurent input (post-syn current)

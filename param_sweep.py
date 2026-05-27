@@ -32,7 +32,7 @@ for p_rel_mean, p_rel_std in zip(p_rel_mean_vals, p_rel_std_vals):
 ###
 noise_tau_vals = [0.1]
 noise_std_vals = [0.1]
-beta_vals = [0., 80.]
+beta_vals = [0., 80., -80.]  # note: negative val indicates alt filtering model
 n_targ_seq_vals = [1, 2, 3, 4, 5]
 seq_compression_vals = [0.25, 0.5, 1.0]
 ###
@@ -69,7 +69,7 @@ output_dir = '/projects/ryth7446/time_coding_output/standard'
 
 
 def test_trained_net(evoked_input, targets, times, model, loss_fn,
-                     h_0, r_0, u_0, dt, noise_tau, noise_std,
+                     h_0, r_0, u_0, dt, noise_tau, noise_std, model_version,
                      plot=False, n_test_trials=10, inputs_to_plot=None):
     '''Train current instantiation of network model.
 
@@ -101,7 +101,7 @@ def test_trained_net(evoked_input, targets, times, model, loss_fn,
     with torch.no_grad():
         # simulate network
         h_t, r_t, u_t, z_t = model(inputs, h_0=h_0, r_0=r_0, u_0=u_0, dt=dt,
-                                   model_version='stp')
+                                   model_version=model_version)
 
     hidden_sr = model.transfer_func(h_t).detach()
     syn_eff = r_t.detach() * u_t.detach()
@@ -275,7 +275,10 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 model.W_hh.copy_(learned_params_init['W_hh'])
                 model.W_hz.copy_(learned_params_init['W_hz'])
 
-            model.beta = beta
+            model_version = 'stp'
+            if beta < 0.0:
+                model_version = 'alt_stp'
+            model.beta = np.abs(beta)
 
             # selected appropriate number of evoked inputs
             n_batch_trials = n_targ_seq
@@ -337,7 +340,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                 inputs = inputs.to(device)
                 loss, _, _ = train_bptt(
                     inputs, targets, times, model, loss_fn, optimizer,
-                    h_0, r_0, u_0, dt=dt, model_version='stp'
+                    h_0, r_0, u_0, dt=dt, model_version=model_version
                     )
                 loss_per_iter.append(loss)
 
@@ -378,6 +381,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
                             dt=dt,
                             noise_tau=noise_tau_test,
                             noise_std=noise_std_test,
+                            model_version=model_version,
                             plot=plot_instance,
                             n_test_trials=n_test_trials,
                             inputs_to_plot=common_evoked_input
@@ -408,7 +412,7 @@ def eval_net_instance(param_net, params_train, params_test, net_idx):
             evoked_input = evoked_input.to(device)  # this wasn't necessarily moved to correct device earlier
             _, sim_stats_post = test_and_get_stats(
                 evoked_input, targets, times, model, loss_fn, h_0, r_0, u_0,
-                dt=dt, model_version='stp', plot=False
+                dt=dt, model_version=model_version, plot=False
                 )
             final_loss = sim_stats_post['loss']
             if np.isfinite(final_loss):
