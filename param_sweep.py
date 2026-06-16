@@ -19,8 +19,8 @@ from train import sim_batch, train_bptt, test_and_get_stats
 from viz import plot_state_traj, plot_all_units
 
 ###
-p_rel_mean_vals = [0.35, 0.35]
-p_rel_std_vals = [0.15, 0.03]
+p_rel_mean_vals = [0.35, 0.35, 0.75]
+p_rel_std_vals = [0.15, 0.03, 0.03]
 ###
 params_between_net = list()
 params_between_net_keys = ['p_rel_mean', 'p_rel_std']
