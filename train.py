@@ -116,9 +116,11 @@ def train_bptt(inputs, targets, times, model, loss_fn, optimizer,
 
         params_reset = W_hh_orig[source_idxs[rand_idxs_source],
                                  target_idxs[rand_idxs_targ]]
-
+        # reset hidden weights
         model.W_hh[source_idxs[rand_idxs_source],
                    target_idxs[rand_idxs_targ]] = params_reset
+        # reset output weights
+        model.W_hz.copy_(model.W_hz * model.W_hz_mask)
 
     return loss.item(), init_params, state_vars
 

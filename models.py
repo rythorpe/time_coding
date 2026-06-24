@@ -98,6 +98,11 @@ class RNN(torch.nn.Module):
             first_source_idx = n_sources_per_output * output_idx
             last_source_idx = n_sources_per_output * output_idx + n_sources_per_output
             self.W_hz_mask[output_idx, first_source_idx:last_source_idx] = 1
+        # reset output weights using mask;
+        # note that all weight masks are enforced during training, but not in
+        # self.forward()
+        with torch.no_grad():
+            self.W_hz.copy_(self.W_hz * self.W_hz_mask)
 
         # create registered buffers (i.e., fancy attributes that need to live
         # on the same device as self
@@ -175,8 +180,7 @@ class RNN(torch.nn.Module):
             f_t = self.transfer_func(h_t,
                                      gain=self.activation_gain,
                                      thresh=self.activation_thresh)
-            output_weight = self.W_hz * self.W_hz_mask
-            z_[:, t_idx, :] = f_t @ output_weight.T
+            z_[:, t_idx, :] = f_t @ self.W_hz.T
 
             # update state in time
             r_t_minus_1 = r_t
