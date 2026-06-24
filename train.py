@@ -159,11 +159,6 @@ def test_and_get_stats(inputs, targets, times, model, loss_fn, h_0, r_0, u_0,
                                    model_version=model_version)
         loss = loss_fn(z_t[:, times > 0, :], targets[:, times > 0, :])
 
-    try:
-        print(f"Test loss: {loss.item():>7f}")
-    except RuntimeError:
-        Warning("Test loss isn't a scalar!")
-
     # select first batch trial to visualize single-trial trajectories
     if inputs_to_plot is None:
         ext_in_trial = (inputs[0] + model.offset_ih).detach().numpy()
