@@ -110,92 +110,86 @@ class RNN(torch.nn.Module):
         '''
         return torch.sigmoid(gain * (h - thresh))
 
-    def forward(self, I, h_0, r_0, u_0, dt=0.001, model_version='stp',
-                return_deriv=False):
+    def forward(self, I, h_0, r_0, u_0, dt=0.001, model_version='stp'):
 
         # assuming input has shape (n_trials, n_times, n_hidden)
         batch_size, seq_len, _ = I.size()
 
         # create matrices for storing time-dependent state variables
-        r_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
-        u_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
-        h_t_all = torch.zeros(batch_size, seq_len, self.n_hidden)
-        z_t_all = torch.zeros(batch_size, seq_len, self.n_outputs)
+        r_ = torch.zeros(batch_size, seq_len, self.n_hidden)
+        u_ = torch.zeros(batch_size, seq_len, self.n_hidden)
+        h_ = torch.zeros(batch_size, seq_len, self.n_hidden)
+        z_ = torch.zeros(batch_size, seq_len, self.n_outputs)
 
-        # NB: doesn't work on CUDA; due to FORCE training, h_0 is updated
-        # regularly in time and therefore lives on the CPU
-        for trial_idx in range(batch_size):
+        # each batch can theoretically have distinct initial conditions,
+        # injected noise, or inputs
+        r_t_minus_1 = r_0
+        u_t_minus_1 = u_0
+        h_t_minus_1 = h_0
 
-            # each batch can theoretically have distinct initial conditions,
-            # injected noise, or inputs
-            r_t_minus_1 = r_0[trial_idx, :]
-            u_t_minus_1 = u_0[trial_idx, :]
-            h_t_minus_1 = h_0[trial_idx, :]
+        f_t_minus_1 = self.transfer_func(h_0,
+                                         gain=self.activation_gain,
+                                         thresh=self.activation_thresh)
 
-            h_transfer = self.transfer_func(h_0[trial_idx, :],
-                                            gain=self.activation_gain,
-                                            thresh=self.activation_thresh)
+        # begin integration over time
+        for t_idx in range(0, seq_len):
 
-            # begin integration over time
-            for t_idx in range(0, seq_len):
+            if model_version == 'stp':
+                # pre-syn STP: depletion of resources (depression)
+                drdt = ((1 - r_t_minus_1) / self.tau_depr
+                        - self.beta * u_t_minus_1 * r_t_minus_1 * f_t_minus_1)
+                r_t = r_t_minus_1 + drdt * dt
 
-                if model_version == 'stp':
-                    # pre-syn STP: depletion of resources (depression)
-                    drdt = ((1 - r_t_minus_1) / self.tau_depr
-                            - self.beta * u_t_minus_1 * r_t_minus_1 * h_transfer)
-                    r_t = r_t_minus_1 + drdt * dt
+                # pre-syn STP: augmentation of utilization (facilitation)
+                dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
+                        + self.beta * self.p_rel * (1 - u_t_minus_1) * f_t_minus_1)
+                u_t = u_t_minus_1 + dudt * dt
 
-                    # pre-syn STP: augmentation of utilization (facilitation)
-                    dudt = ((self.p_rel - u_t_minus_1) / self.tau_facil
-                            + self.beta * self.p_rel * (1 - u_t_minus_1) * h_transfer)
-                    u_t = u_t_minus_1 + dudt * dt
+                # calculate total reccurent input (post-syn current)
+                reccurent_input = self.gain * (self.presyn_scaling *
+                                               r_t_minus_1 *
+                                               u_t_minus_1 *
+                                               f_t_minus_1) @ self.W_hh.T
+            elif model_version == 'alt_stp':
+                # fast timescale filter
+                drdt = (-r_t_minus_1 + f_t_minus_1) / self.tau_syn_depr
+                r_t = r_t_minus_1 + drdt * dt
 
-                    # calculate total reccurent input (post-syn current)
-                    reccurent_input = h_transfer @ (r_t_minus_1 *
-                                                    u_t_minus_1 *
-                                                    self.presyn_scaling *
-                                                    self.gain * self.W_hh).T
-                elif model_version == 'alt_stp':
-                    # fast timescale filter
-                    drdt = (-r_t_minus_1 + h_transfer) / self.tau_syn_depr
-                    r_t = r_t_minus_1 + drdt * dt
+                # slow timescale filter
+                dudt = (-u_t_minus_1 + r_t_minus_1) / self.tau_syn_facil
+                u_t = u_t_minus_1 + dudt * dt
 
-                    # slow timescale filter
-                    dudt = (-u_t_minus_1 + r_t_minus_1) / self.tau_syn_facil
-                    u_t = u_t_minus_1 + dudt * dt
+                # calculate total reccurent input (post-syn current)
+                reccurent_input = self.gain * u_t_minus_1 @ self.W_hh.T
 
-                    # calculate total reccurent input (post-syn current)
-                    reccurent_input = u_t_minus_1 @ (self.gain * self.W_hh).T
+            # post-synaptic integration
+            ext_in = I[:, t_idx, :] + self.offset_ih
+            dhdt = (-h_t_minus_1
+                    + reccurent_input
+                    + ext_in) / self.tau
+            h_t = h_t_minus_1 + dhdt * dt
 
-                # post-synaptic integration
-                ext_in = I[trial_idx, t_idx, :] + self.offset_ih
-                dhdt = (-h_t_minus_1
-                        + reccurent_input
-                        + ext_in) / self.tau
-                h_t = h_t_minus_1 + dhdt * dt
+            # compute firing rate response of hidden units here so that it can be
+            # passed to both z (output units) on the current time step and
+            # itself (recurrently) on the next time step
+            f_t = self.transfer_func(h_t,
+                                     gain=self.activation_gain,
+                                     thresh=self.activation_thresh)
+            output_weight = self.W_hz * self.W_hz_mask
+            z_[:, t_idx, :] = f_t @ output_weight.T
 
-                # compute firing rate response (h) here so that it can be
-                # passed to both z (output unit) on the current time step and
-                # itself (recurrently) on the next time step
-                h_transfer = self.transfer_func(h_t,
-                                                gain=self.activation_gain,
-                                                thresh=self.activation_thresh)
-                output_weight = self.W_hz * self.W_hz_mask
+            # update state in time
+            r_t_minus_1 = r_t
+            u_t_minus_1 = u_t
+            h_t_minus_1 = h_t
+            f_t_minus_1 = f_t
 
-                # update state in time
-                r_t_minus_1 = r_t
-                u_t_minus_1 = u_t
-                h_t_minus_1 = h_t
+            # store timeseries
+            r_[:, t_idx, :] = r_t.detach().clone()
+            u_[:, t_idx, :] = u_t.detach().clone()
+            h_[:, t_idx, :] = h_t.detach().clone()
 
-                r_t_all[trial_idx, t_idx, :] = r_t.clone()
-                u_t_all[trial_idx, t_idx, :] = u_t.clone()
-                h_t_all[trial_idx, t_idx, :] = h_t.clone()
-                z_t_all[trial_idx, t_idx, :] = h_transfer @ output_weight.T
-
-        if return_deriv is True:
-            return dhdt, drdt, dudt
-        else:
-            return h_t_all, r_t_all, u_t_all, z_t_all
+        return h_, r_, u_, z_
 
 
 def OU_process(n_trials, n_times, n_dim, dt, noise_tau, noise_std,
